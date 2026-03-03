@@ -1,0 +1,509 @@
+---
+title: Policy Management
+description: Binding roles to users and resources through policies
+---
+
+Policies define the permissions and access control rules that govern user access to resources. A policy binds a **role** to a **principal** (user, group, or service account) on a specific **resource**.
+
+## Policy Structure
+
+<CodeGroup>
+```go Policy Model
+type Policy struct {
+    ID            string
+    RoleID        string         // Role being assigned
+    ResourceID    string         // Target resource
+    ResourceType  string         // Resource namespace
+    PrincipalID   string         // User/group/service account
+    PrincipalType string         // "app/user", "app/group", "app/serviceuser"
+    Metadata      map[string]any
+    CreatedAt     time.Time
+    UpdatedAt     time.Time
+}
+```
+
+```json Example Policy
+{
+  "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "roleId": "8e73f4a2-3763-4dc6-a00e-7a9aebeaa971",
+  "resourceId": "4d726cf5-52f6-46f1-9c87-1a79f29e3abf",
+  "resourceType": "app/organization",
+  "principalId": "550e8400-e29b-41d4-a716-446655440000",
+  "principalType": "app/user",
+  "metadata": {},
+  "createdAt": "2023-06-07T05:39:56.941Z",
+  "updatedAt": "2023-06-07T05:39:56.941Z"
+}
+```
+</CodeGroup>
+
+## How Policies Work
+
+When a policy is created:
+
+<Steps>
+  <Step title="Policy Created">
+    A policy record is stored in Frontier's database with role, principal, and resource information
+  </Step>
+  
+  <Step title="Role Binding in SpiceDB">
+    Frontier creates a `app/rolebinding` object in SpiceDB with three key relations
+  </Step>
+  
+  <Step title="Permission Graph Built">
+    SpiceDB constructs a permission graph connecting the user to permissions via the role
+  </Step>
+  
+  <Step title="Access Checks">
+    When the user requests access, SpiceDB traverses the graph to verify permissions
+  </Step>
+</Steps>
+
+### SpiceDB Relations Created
+
+For each policy, three relations are established:
+
+```zed Example: John as Organization Owner
+// 1. Link user as bearer of the role
+app/rolebinding:policy123#bearer@app/user:john
+
+// 2. Link the role to the binding
+app/rolebinding:policy123#role@app/role:app_organization_owner
+
+// 3. Link the binding to the resource
+app/organization:acme#granted@app/rolebinding:policy123
+```
+
+This creates a path: `User → RoleBinding → Role → Permissions`
+
+### Group Policies
+
+When binding a role to a **group**, the subject includes a sub-relation:
+
+```zed
+// Group members inherit the role
+app/rolebinding:policy456#bearer@app/group:engineering#member
+```
+
+All members of the `engineering` group automatically receive the role's permissions.
+
+## Policy Usage with Check API
+
+After creating policies, use the Check API to verify permissions.
+
+### Basic Permission Check
+
+<CodeGroup>
+```bash Request
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/check' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+-H 'Authorization: Basic dGVzdC1jbGllbnQtaWQ6dGVzdC1zZWNyZXQ=' \
+--data-raw '{
+  "permission": "get",
+  "resource": "compute/instance:92f69c3a-334b-4f25-90b8-4d4f3be6b825"
+}'
+```
+
+```json Success Response
+{
+  "status": true
+}
+```
+
+```json Denied Response  
+{
+  "status": false
+}
+```
+</CodeGroup>
+
+### How the Check Works
+
+<Steps>
+  <Step title="Extract Principal">
+    Frontier extracts user credentials from:
+    - Session cookies (if logged in)
+    - `Authorization` header (Basic auth with client ID/secret)
+    - Access token
+  </Step>
+  
+  <Step title="Parse Resource">
+    The resource string is parsed into namespace and ID:
+    - `compute/instance:92f69c3a-334b-4f25-90b8-4d4f3be6b825`
+    - Namespace: `compute/instance`
+    - ID: `92f69c3a-334b-4f25-90b8-4d4f3be6b825`
+  </Step>
+  
+  <Step title="Query SpiceDB">
+    Frontier asks SpiceDB: "Does user X have permission Y on resource Z?"
+  </Step>
+  
+  <Step title="Graph Traversal">
+    SpiceDB traverses the permission graph:
+    1. Find role bindings where user is bearer
+    2. Check if role has the requested permission
+    3. Verify role binding is granted on the resource
+  </Step>
+  
+  <Step title="Return Decision">
+    Returns `true` if a valid path exists, `false` otherwise
+  </Step>
+</Steps>
+
+### Resource Formats
+
+The Check API accepts flexible resource formats:
+
+<Tabs>
+  <Tab title="Full Namespace">
+    ```json
+    {
+      "permission": "update",
+      "resource": "app/organization:acme-corp"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Alias">
+    ```json
+    {
+      "permission": "get",
+      "resource": "org:acme-corp"
+    }
+    ```
+    
+    Aliases: `org`, `organization` → `app/organization`
+  </Tab>
+  
+  <Tab title="UUID">
+    ```json
+    {
+      "permission": "delete",
+      "resource": "app/project:92f69c3a-334b-4f25-90b8-4d4f3be6b825"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Custom Resource">
+    ```json
+    {
+      "permission": "deploy",
+      "resource": "compute/instance:prod-web-01"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Managing Policies via API
+
+### Create Policy
+
+Assign a role to a user on a resource:
+
+<CodeGroup>
+```bash Organization Policy
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/4d726cf5-52f6-46f1-9c87-1a79f29e3abf/policies' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+--data-raw '{
+  "roleId": "app_organization_manager",
+  "principalId": "550e8400-e29b-41d4-a716-446655440000",
+  "principalType": "app/user"
+}'
+```
+
+```bash Project Policy
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/projects/92f69c3a-334b-4f25-90b8-4d4f3be6b825/policies' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+--data-raw '{
+  "roleId": "app_project_viewer",
+  "principalId": "jane@example.com",
+  "principalType": "app/user"
+}'
+```
+
+```bash Group Policy
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/groups/abc123/policies' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "roleId": "app_group_owner",
+  "principalId": "admin-group-id",
+  "principalType": "app/group"
+}'
+```
+</CodeGroup>
+
+<Note>
+The `roleId` can be either the role UUID or role name (e.g., `app_organization_manager`). Frontier automatically resolves names to IDs.
+</Note>
+
+### List Policies
+
+Retrieve policies for a resource:
+
+<CodeGroup>
+```bash Organization Policies
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/organizations/4d726cf5-52f6-46f1-9c87-1a79f29e3abf/policies' \
+-H 'Accept: application/json'
+```
+
+```bash Project Policies
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/projects/92f69c3a-334b-4f25-90b8-4d4f3be6b825/policies' \
+-H 'Accept: application/json'
+```
+
+```bash User Policies
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/users/550e8400-e29b-41d4-a716-446655440000/policies' \
+-H 'Accept: application/json'
+```
+</CodeGroup>
+
+### Delete Policy
+
+Revoke a role assignment:
+
+```bash
+curl -L -X DELETE 'http://127.0.0.1:7400/v1beta1/organizations/4d726cf5-52f6-46f1-9c87-1a79f29e3abf/policies/f47ac10b-58cc-4372-a567-0e02b2c3d479' \
+-H 'Accept: application/json'
+```
+
+Deleting a policy:
+1. Removes the policy record from Frontier
+2. Deletes the `app/rolebinding` relations from SpiceDB
+3. Immediately revokes the user's access
+
+## Policy Internals
+
+Understanding how policies work under the hood:
+
+### Policy Creation Process
+
+<Steps>
+  <Step title="Validate Role">
+    Verify the role exists and retrieve its ID if a name was provided
+  </Step>
+  
+  <Step title="Create Policy Record">
+    Store the policy in Frontier's database
+  </Step>
+  
+  <Step title="Assign Role in SpiceDB">
+    Create three SpiceDB relations:
+    
+    ```go
+    // Bearer relation
+    relation.Create(ctx, {
+      Object: {ID: policyID, Namespace: "app/rolebinding"},
+      Subject: {ID: userID, Namespace: "app/user"},
+      RelationName: "bearer"
+    })
+    
+    // Role relation
+    relation.Create(ctx, {
+      Object: {ID: policyID, Namespace: "app/rolebinding"},
+      Subject: {ID: roleID, Namespace: "app/role"},
+      RelationName: "role"
+    })
+    
+    // Granted relation
+    relation.Create(ctx, {
+      Object: {ID: resourceID, Namespace: resourceType},
+      Subject: {ID: policyID, Namespace: "app/rolebinding"},
+      RelationName: "granted"
+    })
+    ```
+  </Step>
+  
+  <Step title="Return Policy">
+    Return the created policy object to the caller
+  </Step>
+</Steps>
+
+### Group Policy Sub-Relations
+
+When the principal is a group:
+
+```go
+subjectSubRelation := ""
+if principalType == "app/group" {
+    subjectSubRelation = "member"
+}
+
+relation.Create(ctx, {
+    Object: {ID: policyID, Namespace: "app/rolebinding"},
+    Subject: {
+        ID: groupID, 
+        Namespace: "app/group",
+        SubRelationName: "member"  // Only group members get the role
+    },
+    RelationName: "bearer"
+})
+```
+
+This ensures only **members** of the group inherit the role, not just anyone with access to the group object.
+
+## Hierarchical Role Based Access Control
+
+Frontier implements hierarchical RBAC where permissions cascade through organizational structures.
+
+### Organization-Level Policies
+
+Granting a role at the organization level provides access to:
+- The organization itself
+- All projects within the organization
+- All groups within the organization
+- Resources in those projects
+
+<Note>
+This is implemented via synthetic permissions in the SpiceDB schema (e.g., `project_get`, `group_update`).
+</Note>
+
+### Example Hierarchy
+
+```
+Organization: ACME Corp
+├── Project: Backend API
+│   ├── Resource: compute/instance:prod-db
+│   └── Resource: storage/bucket:api-logs
+└── Project: Frontend
+    └── Resource: compute/instance:web-server
+```
+
+A user with `app_organization_owner` on ACME Corp can:
+- Manage the organization
+- Access all projects (Backend API, Frontend)
+- Manage all resources in those projects
+
+## Real-World Policy Examples
+
+### Example 1: Organization Manager
+
+Grant organization management access:
+
+```bash
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/acme-corp/policies' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "roleId": "app_organization_manager",
+  "principalId": "alice@acme.com",
+  "principalType": "app/user"
+}'
+```
+
+**Result**: Alice can update organization details, create projects/groups, and manage service users.
+
+### Example 2: Project Viewer
+
+Grant read-only project access:
+
+```bash
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/projects/backend-api/policies' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "roleId": "app_project_viewer",
+  "principalId": "bob@acme.com",
+  "principalType": "app/user"
+}'
+```
+
+**Result**: Bob can view the Backend API project but cannot modify it.
+
+### Example 3: Custom Role Policy
+
+Assign a custom shopping cart manager role:
+
+```bash
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/ecommerce-org/policies' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "roleId": "cart_manager",
+  "principalId": "cart-service-account",
+  "principalType": "app/serviceuser"
+}'
+```
+
+**Result**: The cart service account can manage shopping carts with `potato_cart_update`, `potato_cart_get`, and `potato_cart_delete` permissions.
+
+### Example 4: Group-Based Access
+
+Grant access to all engineering team members:
+
+```bash
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/projects/backend-api/policies' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "roleId": "app_project_manager",
+  "principalId": "engineering-team",
+  "principalType": "app/group"
+}'
+```
+
+**Result**: All members of the engineering-team group can manage the Backend API project.
+
+## Policy Filtering and Listing
+
+Retrieve policies with filters:
+
+<CodeGroup>
+```bash By User
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/policies?userId=550e8400-e29b-41d4-a716-446655440000' \
+-H 'Accept: application/json'
+```
+
+```bash By Group
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/policies?groupId=engineering-team' \
+-H 'Accept: application/json'
+```
+
+```bash By Organization
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/organizations/acme-corp/policies' \
+-H 'Accept: application/json'
+```
+
+```bash By Project
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/projects/backend-api/policies' \
+-H 'Accept: application/json'
+```
+</CodeGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Grant Least Privilege">
+    Assign the minimum role necessary for users to perform their tasks. Use viewer roles for read-only access, manager roles for operational tasks, and owner roles sparingly.
+  </Accordion>
+  
+  <Accordion title="Use Groups for Team Access">
+    Instead of creating individual policies for each team member, create a group and assign the role to the group. This simplifies management and ensures consistency.
+  </Accordion>
+  
+  <Accordion title="Leverage Hierarchical Permissions">
+    Grant roles at the organization level when users need broad access, and at project/resource level for targeted permissions.
+  </Accordion>
+  
+  <Accordion title="Regular Access Reviews">
+    Periodically audit policies to ensure users still need their assigned roles. Remove policies for departed team members or changed responsibilities.
+  </Accordion>
+  
+  <Accordion title="Use Service Accounts for Applications">
+    Create service users and assign roles via policies for application-to-application authorization rather than using user credentials.
+  </Accordion>
+  
+  <Accordion title="Document Custom Policies">
+    Add metadata to policies explaining why specific access was granted, especially for custom roles or unusual assignments.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Examples" icon="code" href="/authorization/examples">
+    Explore real-world authorization patterns and use cases
+  </Card>
+  
+  <Card title="API Reference" icon="book" href="/api-reference">
+    View complete API documentation for policy management
+  </Card>
+</CardGroup>

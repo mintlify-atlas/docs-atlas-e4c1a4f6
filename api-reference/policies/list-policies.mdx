@@ -1,0 +1,173 @@
+---
+title: 'List Policies'
+description: 'Retrieve a list of policies with optional filters'
+---
+
+## GET /v1beta1/policies
+
+Retrieve a list of policies based on various filter criteria including organization, project, user, role, or group.
+
+### Query Parameters
+
+<ParamField query="org_id" type="string">
+  Filter policies by organization ID or name. Accepts both UUID and organization name.
+</ParamField>
+
+<ParamField query="project_id" type="string">
+  Filter policies by project ID or name. Accepts both UUID and project name.
+</ParamField>
+
+<ParamField query="user_id" type="string">
+  Filter policies by user ID or email. Accepts both UUID and user identifier.
+</ParamField>
+
+<ParamField query="role_id" type="string">
+  Filter policies by role ID or name. Accepts both UUID and role name.
+</ParamField>
+
+<ParamField query="group_id" type="string">
+  Filter policies by group ID. Must be a valid UUID.
+</ParamField>
+
+### Response
+
+<ResponseField name="policies" type="array">
+  List of policy objects matching the filter criteria.
+  
+  <ResponseField name="id" type="string">
+    Unique identifier for the policy.
+  </ResponseField>
+  
+  <ResponseField name="role_id" type="string">
+    ID of the role assigned by this policy.
+  </ResponseField>
+  
+  <ResponseField name="resource" type="string">
+    Resource identifier in the format `namespace:resource_id` (e.g., `app/organization:123`, `app/project:456`).
+  </ResponseField>
+  
+  <ResponseField name="principal" type="string">
+    Principal identifier in the format `namespace:principal_id` (e.g., `app/user:789`, `app/group:012`).
+  </ResponseField>
+  
+  <ResponseField name="metadata" type="object">
+    Additional metadata associated with the policy.
+  </ResponseField>
+  
+  <ResponseField name="created_at" type="timestamp">
+    Timestamp when the policy was created.
+  </ResponseField>
+  
+  <ResponseField name="updated_at" type="timestamp">
+    Timestamp when the policy was last updated.
+  </ResponseField>
+</ResponseField>
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET 'https://api.frontier.example.com/v1beta1/policies?org_id=my-org&role_id=admin' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.frontier.example.com/v1beta1/policies?org_id=my-org&role_id=admin', {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer YOUR_ACCESS_TOKEN'
+  }
+});
+
+const data = await response.json();
+console.log(data.policies);
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'https://api.frontier.example.com/v1beta1/policies',
+    params={
+        'org_id': 'my-org',
+        'role_id': 'admin'
+    },
+    headers={
+        'Authorization': 'Bearer YOUR_ACCESS_TOKEN'
+    }
+)
+
+policies = response.json()['policies']
+```
+
+```go Go
+import (
+    "fmt"
+    "net/http"
+    "io/ioutil"
+)
+
+req, _ := http.NewRequest("GET", "https://api.frontier.example.com/v1beta1/policies?org_id=my-org&role_id=admin", nil)
+req.Header.Add("Authorization", "Bearer YOUR_ACCESS_TOKEN")
+
+client := &http.Client{}
+resp, err := client.Do(req)
+if err != nil {
+    panic(err)
+}
+defer resp.Body.Close()
+
+body, _ := ioutil.ReadAll(resp.Body)
+fmt.Println(string(body))
+```
+
+</CodeGroup>
+
+### Response Example
+
+```json
+{
+  "policies": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "role_id": "admin-role-id",
+      "resource": "app/organization:org-123",
+      "principal": "app/user:user-456",
+      "metadata": {
+        "description": "Admin access to organization"
+      },
+      "created_at": "2024-01-15T10:30:00Z",
+      "updated_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440001",
+      "role_id": "viewer-role-id",
+      "resource": "app/project:proj-789",
+      "principal": "app/group:group-012",
+      "metadata": {},
+      "created_at": "2024-01-20T14:20:00Z",
+      "updated_at": "2024-01-20T14:20:00Z"
+    }
+  ]
+}
+```
+
+### Error Responses
+
+<ResponseField name="error" type="object">
+  <ResponseField name="code" type="string">
+    Error code. Possible values:
+    - `invalid_argument` - Invalid filter parameters
+    - `internal` - Internal server error
+  </ResponseField>
+  
+  <ResponseField name="message" type="string">
+    Human-readable error message.
+  </ResponseField>
+</ResponseField>
+
+## Notes
+
+- Filter parameters can accept both UUIDs and human-readable names (except for `group_id` which requires a UUID)
+- Multiple filters can be combined to narrow down results
+- All query parameters are optional
+- Returns an empty array if no policies match the filter criteria

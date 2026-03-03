@@ -1,0 +1,468 @@
+---
+title: Shell Autocomplete
+description: Enable command autocompletion for Frontier CLI
+---
+
+Shell autocompletion makes using the Frontier CLI faster and more convenient by providing command and flag suggestions as you type.
+
+## Overview
+
+The Frontier CLI supports shell autocompletion for:
+- **Bash**
+- **Zsh**
+- **Fish**
+- **PowerShell**
+
+Autocompletion provides:
+- Command name completion
+- Subcommand completion
+- Flag name completion
+- Contextual suggestions
+
+## Bash
+
+### Linux
+
+For Bash on Linux, the completion script depends on the `bash-completion` package.
+
+#### Install bash-completion
+
+<CodeGroup>
+```bash Ubuntu/Debian
+sudo apt-get install bash-completion
+```
+
+```bash Fedora/RHEL/CentOS
+sudo yum install bash-completion
+```
+
+```bash Arch Linux
+sudo pacman -S bash-completion
+```
+</CodeGroup>
+
+#### Enable Frontier Completion
+
+**Option 1: Per-user installation**
+
+```bash
+# Generate completion script
+frontier completion bash > ~/.frontier-completion.bash
+
+# Add to your ~/.bashrc
+echo 'source ~/.frontier-completion.bash' >> ~/.bashrc
+
+# Reload your shell
+source ~/.bashrc
+```
+
+**Option 2: System-wide installation**
+
+```bash
+# Generate and install system-wide
+sudo frontier completion bash > /etc/bash_completion.d/frontier
+
+# Reload your shell
+source ~/.bashrc
+```
+
+### macOS
+
+For Bash on macOS, you need to install `bash-completion@2` via Homebrew.
+
+#### Install bash-completion
+
+```bash
+brew install bash-completion@2
+```
+
+#### Enable Frontier Completion
+
+```bash
+# Generate completion script
+frontier completion bash > $(brew --prefix)/etc/bash_completion.d/frontier
+
+# Add to your ~/.bash_profile if not already present
+echo 'export BASH_COMPLETION_COMPAT_DIR="$(brew --prefix)/etc/bash_completion.d"' >> ~/.bash_profile
+echo '[[ -r "$(brew --prefix)/etc/profile.d/bash_completion.sh" ]] && . "$(brew --prefix)/etc/profile.d/bash_completion.sh"' >> ~/.bash_profile
+
+# Reload your shell
+source ~/.bash_profile
+```
+
+## Zsh
+
+Zsh is the default shell on macOS (Catalina and later) and is popular on Linux.
+
+### Enable Frontier Completion
+
+**Option 1: Using Oh My Zsh**
+
+If you use [Oh My Zsh](https://ohmyz.sh/):
+
+```bash
+# Create completions directory if it doesn't exist
+mkdir -p ~/.oh-my-zsh/completions
+
+# Generate completion script
+frontier completion zsh > ~/.oh-my-zsh/completions/_frontier
+
+# Reload your shell
+source ~/.zshrc
+```
+
+**Option 2: Manual installation**
+
+```bash
+# Generate completion script to a file in your $fpath
+frontier completion zsh > "${fpath[1]}/_frontier"
+
+# Reload your shell
+source ~/.zshrc
+```
+
+**Option 3: Inline in .zshrc**
+
+```bash
+# Add to ~/.zshrc
+if [ $commands[frontier] ]; then
+  source <(frontier completion zsh)
+fi
+
+# Reload your shell
+source ~/.zshrc
+```
+
+### Troubleshooting Zsh Completion
+
+If completions aren't working, ensure completion is enabled:
+
+```bash
+# Add to ~/.zshrc if not already present
+autoload -Uz compinit
+compinit
+```
+
+If you get errors about insecure directories:
+
+```bash
+# Fix permissions
+chmod -R 755 ~/.oh-my-zsh/completions
+chmod 755 "${fpath[1]}"
+
+# Or run compinit with -u flag (in ~/.zshrc)
+compinit -u
+```
+
+## Fish
+
+Fish shell has built-in support for completions.
+
+### Enable Frontier Completion
+
+```bash
+# Generate and install completion script
+frontier completion fish > ~/.config/fish/completions/frontier.fish
+
+# Reload completions (or restart fish)
+fish_update_completions
+```
+
+## PowerShell
+
+For Windows PowerShell or PowerShell Core.
+
+### Enable Frontier Completion
+
+**Option 1: Current user**
+
+```powershell
+# Generate completion script
+frontier completion powershell | Out-String | Invoke-Expression
+
+# Add to your PowerShell profile
+Add-Content $PROFILE "frontier completion powershell | Out-String | Invoke-Expression"
+```
+
+**Option 2: Save to file**
+
+```powershell
+# Create profile directory if it doesn't exist
+$profileDir = Split-Path $PROFILE
+if (!(Test-Path $profileDir)) {
+    New-Item -ItemType Directory -Path $profileDir
+}
+
+# Generate completion script
+frontier completion powershell > $profileDir\frontier-completion.ps1
+
+# Add to your PowerShell profile
+Add-Content $PROFILE ". $profileDir\frontier-completion.ps1"
+```
+
+## Generating Completion Scripts
+
+You can generate completion scripts for all supported shells using the hidden `completion` command:
+
+```bash
+frontier completion [bash|zsh|fish|powershell]
+```
+
+<Note>
+The `completion` command is not shown in `frontier --help` output but is available for use.
+</Note>
+
+### Examples
+
+<CodeGroup>
+```bash Bash
+frontier completion bash > frontier-completion.bash
+```
+
+```bash Zsh
+frontier completion zsh > _frontier
+```
+
+```bash Fish
+frontier completion fish > frontier.fish
+```
+
+```powershell PowerShell
+frontier completion powershell > frontier-completion.ps1
+```
+</CodeGroup>
+
+## Using Autocompletion
+
+Once configured, autocompletion works as follows:
+
+### Command Completion
+
+Press `Tab` after typing `frontier` to see available commands:
+
+```bash
+$ frontier <Tab>
+config          group           namespace       organization    policy          role            server          version
+```
+
+### Subcommand Completion
+
+Press `Tab` after a command to see subcommands:
+
+```bash
+$ frontier server <Tab>
+init            keygen          migrate         migrate-rollback start
+```
+
+### Flag Completion
+
+Press `Tab` after `--` to see available flags:
+
+```bash
+$ frontier server start --<Tab>
+--config        --help
+```
+
+### Contextual Completion
+
+Autocompletion is context-aware. For example, after typing a command that requires a file:
+
+```bash
+$ frontier user create --file <Tab>
+# Shows available files in current directory
+```
+
+## Verification
+
+To verify that autocompletion is working:
+
+1. Type `frontier ` and press `Tab` - you should see a list of commands
+2. Type `frontier server ` and press `Tab` - you should see server subcommands
+3. Type `frontier server start --` and press `Tab` - you should see available flags
+
+### Example Session
+
+```bash
+# Start typing and press Tab
+$ frontier ser<Tab>
+$ frontier server <Tab>
+init            keygen          migrate         migrate-rollback start
+
+$ frontier server st<Tab>
+$ frontier server start --<Tab>
+--config        --help
+
+$ frontier server start --config <Tab>
+config.yaml     config-prod.yaml
+```
+
+## Troubleshooting
+
+### Bash
+
+**Problem:** Completion not working
+
+**Solutions:**
+
+1. Verify `bash-completion` is installed:
+   ```bash
+   dpkg -l | grep bash-completion  # Debian/Ubuntu
+   rpm -qa | grep bash-completion  # RHEL/Fedora
+   ```
+
+2. Check that completion script is sourced:
+   ```bash
+   grep frontier ~/.bashrc
+   ```
+
+3. Manually source the completion:
+   ```bash
+   source ~/.frontier-completion.bash
+   ```
+
+### Zsh
+
+**Problem:** Completion not working
+
+**Solutions:**
+
+1. Verify completion is in your `$fpath`:
+   ```bash
+   echo $fpath
+   ```
+
+2. Check that `compinit` is called in `.zshrc`:
+   ```bash
+   grep compinit ~/.zshrc
+   ```
+
+3. Rebuild completion cache:
+   ```bash
+   rm -f ~/.zcompdump
+   compinit
+   ```
+
+4. Check permissions:
+   ```bash
+   ls -la "${fpath[1]}/_frontier"
+   ```
+
+### Fish
+
+**Problem:** Completion not working
+
+**Solutions:**
+
+1. Verify completion file exists:
+   ```bash
+   ls ~/.config/fish/completions/frontier.fish
+   ```
+
+2. Reload completions:
+   ```bash
+   fish_update_completions
+   ```
+
+3. Check Fish version (3.0+ recommended):
+   ```bash
+   fish --version
+   ```
+
+### PowerShell
+
+**Problem:** Completion not working
+
+**Solutions:**
+
+1. Verify profile exists:
+   ```powershell
+   Test-Path $PROFILE
+   ```
+
+2. Check execution policy:
+   ```powershell
+   Get-ExecutionPolicy
+   # If restricted, set to RemoteSigned:
+   Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+   ```
+
+3. Reload profile:
+   ```powershell
+   . $PROFILE
+   ```
+
+### General Issues
+
+**Problem:** Completions are outdated after Frontier update
+
+**Solution:** Regenerate the completion script:
+
+```bash
+# For Bash
+frontier completion bash > ~/.frontier-completion.bash
+source ~/.bashrc
+
+# For Zsh
+frontier completion zsh > ~/.oh-my-zsh/completions/_frontier
+rm -f ~/.zcompdump && compinit
+
+# For Fish
+frontier completion fish > ~/.config/fish/completions/frontier.fish
+fish_update_completions
+```
+
+## Advanced Configuration
+
+### Custom Completion Location
+
+You can place completion scripts in custom locations:
+
+#### Bash
+
+```bash
+# Custom location
+frontier completion bash > ~/my-completions/frontier.bash
+
+# Add to ~/.bashrc
+source ~/my-completions/frontier.bash
+```
+
+#### Zsh
+
+```bash
+# Custom location
+mkdir -p ~/my-completions
+frontier completion zsh > ~/my-completions/_frontier
+
+# Add to ~/.zshrc before compinit
+fpath=(~/my-completions $fpath)
+autoload -Uz compinit
+compinit
+```
+
+### Lazy Loading (Zsh)
+
+For faster shell startup, you can lazy-load completions:
+
+```bash
+# Add to ~/.zshrc
+function frontier() {
+    unfunction frontier
+    source <(command frontier completion zsh)
+    command frontier "$@"
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="CLI Overview" icon="terminal" href="./overview">
+    Learn about CLI capabilities
+  </Card>
+  <Card title="Commands Reference" icon="book" href="./commands">
+    Browse all available commands
+  </Card>
+  <Card title="Installation" icon="download" href="./installation">
+    Install the Frontier CLI
+  </Card>
+</CardGroup>

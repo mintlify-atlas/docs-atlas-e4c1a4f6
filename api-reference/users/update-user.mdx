@@ -1,0 +1,192 @@
+---
+title: 'Update User'
+api: 'PUT /v1beta1/users/{id}'
+---
+
+Update an existing user's information. This endpoint supports upsert behavior when using email as the identifier - if the user doesn't exist, it will be created.
+
+## Authentication
+
+This endpoint requires authentication. Include a valid bearer token in the Authorization header.
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  User identifier. Can be one of:
+  - User ID (UUID)
+  - Email address (supports upsert)
+  - Username/slug
+</ParamField>
+
+## Request Body
+
+<ParamField body="name" type="string">
+  Username or slug for the user. Must start with a character.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Email address of the user. Must match the email in the path parameter if updating by email.
+</ParamField>
+
+<ParamField body="title" type="string">
+  Display name or title for the user.
+</ParamField>
+
+<ParamField body="avatar" type="string">
+  URL to the user's avatar image.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Custom metadata to associate with the user. Must conform to the user metadata schema if validation is enabled.
+</ParamField>
+
+## Response
+
+<ResponseField name="user" type="object">
+  The updated user object.
+  <ResponseField name="id" type="string">
+    Unique identifier for the user (UUID).
+  </ResponseField>
+  <ResponseField name="name" type="string">
+    User's username or slug.
+  </ResponseField>
+  <ResponseField name="title" type="string">
+    User's title or display name.
+  </ResponseField>
+  <ResponseField name="email" type="string">
+    User's email address.
+  </ResponseField>
+  <ResponseField name="avatar" type="string">
+    URL to the user's avatar image.
+  </ResponseField>
+  <ResponseField name="state" type="string">
+    Current state of the user account.
+  </ResponseField>
+  <ResponseField name="metadata" type="object">
+    Custom metadata associated with the user.
+  </ResponseField>
+  <ResponseField name="created_at" type="timestamp">
+    Timestamp when the user was created.
+  </ResponseField>
+  <ResponseField name="updated_at" type="timestamp">
+    Timestamp when the user was last updated.
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X PUT 'https://api.frontier.example.com/v1beta1/users/9f256f86-4a1e-4b2a-9c45-6d2c8f5a3b7e' \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "john.doe",
+    "email": "john.doe@example.com",
+    "title": "John Doe - Senior Engineer",
+    "avatar": "https://example.com/avatars/john-new.jpg",
+    "metadata": {
+      "department": "Engineering",
+      "team": "Platform"
+    }
+  }'
+```
+
+```javascript JavaScript
+const userId = '9f256f86-4a1e-4b2a-9c45-6d2c8f5a3b7e';
+const response = await fetch(`https://api.frontier.example.com/v1beta1/users/${userId}`, {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer <token>',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name: 'john.doe',
+    email: 'john.doe@example.com',
+    title: 'John Doe - Senior Engineer',
+    avatar: 'https://example.com/avatars/john-new.jpg',
+    metadata: {
+      department: 'Engineering',
+      team: 'Platform'
+    }
+  })
+});
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+user_id = '9f256f86-4a1e-4b2a-9c45-6d2c8f5a3b7e'
+response = requests.put(
+    f'https://api.frontier.example.com/v1beta1/users/{user_id}',
+    headers={
+        'Authorization': 'Bearer <token>',
+        'Content-Type': 'application/json'
+    },
+    json={
+        'name': 'john.doe',
+        'email': 'john.doe@example.com',
+        'title': 'John Doe - Senior Engineer',
+        'avatar': 'https://example.com/avatars/john-new.jpg',
+        'metadata': {
+            'department': 'Engineering',
+            'team': 'Platform'
+        }
+    }
+)
+data = response.json()
+```
+
+</CodeGroup>
+
+## Example Response
+
+```json
+{
+  "user": {
+    "id": "9f256f86-4a1e-4b2a-9c45-6d2c8f5a3b7e",
+    "name": "john.doe",
+    "title": "John Doe - Senior Engineer",
+    "email": "john.doe@example.com",
+    "avatar": "https://example.com/avatars/john-new.jpg",
+    "state": "enabled",
+    "metadata": {
+      "department": "Engineering",
+      "team": "Platform"
+    },
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-03-03T15:45:00Z"
+  }
+}
+```
+
+## Upsert Behavior
+
+When using an email address as the ID parameter:
+- If the user exists, their information will be updated
+- If the user doesn't exist, a new user will be created with the provided information
+- The email in the request body must match the email in the path parameter
+
+## Error Codes
+
+<ResponseField name="400" type="error">
+  Bad Request - Invalid request body, missing required fields, email mismatch, or metadata schema validation failed.
+</ResponseField>
+
+<ResponseField name="401" type="error">
+  Unauthorized - Invalid or missing authentication token.
+</ResponseField>
+
+<ResponseField name="404" type="error">
+  Not Found - User does not exist with the provided identifier (when not using email).
+</ResponseField>
+
+<ResponseField name="409" type="error">
+  Conflict - Email already exists for a different user.
+</ResponseField>
+
+<ResponseField name="500" type="error">
+  Internal Server Error - An unexpected error occurred.
+</ResponseField>

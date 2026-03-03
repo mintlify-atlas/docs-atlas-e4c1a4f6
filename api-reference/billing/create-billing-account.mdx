@@ -1,0 +1,173 @@
+---
+title: 'Create Billing Account'
+openapi: 'POST /v1beta1/organizations/{org_id}/billing'
+---
+
+<RequestExample>
+
+```bash cURL
+curl -X POST "https://frontier.example.com/v1beta1/organizations/{org_id}/billing" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": {
+      "name": "Acme Corp Billing",
+      "email": "billing@acme.com",
+      "phone": "+1234567890",
+      "currency": "usd",
+      "address": {
+        "line1": "123 Main St",
+        "line2": "Suite 100",
+        "city": "San Francisco",
+        "state": "CA",
+        "postal_code": "94105",
+        "country": "US"
+      },
+      "tax_data": [
+        {
+          "type": "us_ein",
+          "id": "12-3456789"
+        }
+      ],
+      "metadata": {}
+    },
+    "offline": false
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://frontier.example.com/v1beta1/organizations/{org_id}/billing',
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer <token>',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      body: {
+        name: 'Acme Corp Billing',
+        email: 'billing@acme.com',
+        phone: '+1234567890',
+        currency: 'usd',
+        address: {
+          line1: '123 Main St',
+          line2: 'Suite 100',
+          city: 'San Francisco',
+          state: 'CA',
+          postal_code: '94105',
+          country: 'US'
+        },
+        tax_data: [
+          {
+            type: 'us_ein',
+            id: '12-3456789'
+          }
+        ],
+        metadata: {}
+      },
+      offline: false
+    })
+  }
+);
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://frontier.example.com/v1beta1/organizations/{org_id}/billing',
+    headers={
+        'Authorization': 'Bearer <token>',
+        'Content-Type': 'application/json'
+    },
+    json={
+        'body': {
+            'name': 'Acme Corp Billing',
+            'email': 'billing@acme.com',
+            'phone': '+1234567890',
+            'currency': 'usd',
+            'address': {
+                'line1': '123 Main St',
+                'line2': 'Suite 100',
+                'city': 'San Francisco',
+                'state': 'CA',
+                'postal_code': '94105',
+                'country': 'US'
+            },
+            'tax_data': [
+                {
+                    'type': 'us_ein',
+                    'id': '12-3456789'
+                }
+            ],
+            'metadata': {}
+        },
+        'offline': False
+    }
+)
+data = response.json()
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "billing_account": {
+    "id": "billing_acc_123",
+    "org_id": "org_123",
+    "name": "Acme Corp Billing",
+    "email": "billing@acme.com",
+    "phone": "+1234567890",
+    "currency": "usd",
+    "state": "active",
+    "provider_id": "cus_stripe123",
+    "address": {
+      "line1": "123 Main St",
+      "line2": "Suite 100",
+      "city": "San Francisco",
+      "state": "CA",
+      "postal_code": "94105",
+      "country": "US"
+    },
+    "tax_data": [
+      {
+        "type": "us_ein",
+        "id": "12-3456789"
+      }
+    ],
+    "metadata": {},
+    "created_at": "2023-06-07T05:39:56.961Z",
+    "updated_at": "2023-06-07T05:39:56.961Z"
+  }
+}
+```
+
+```json 400
+{
+  "code": 3,
+  "message": "Bad Request - The request was malformed or contained invalid parameters",
+  "details": []
+}
+```
+
+```json 401
+{
+  "code": 16,
+  "message": "Unauthorized - Authentication is required",
+  "details": []
+}
+```
+
+```json 409
+{
+  "code": 9,
+  "message": "An active billing account already exists for this organization",
+  "details": []
+}
+```
+
+</ResponseExample>

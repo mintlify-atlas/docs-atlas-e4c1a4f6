@@ -1,0 +1,512 @@
+---
+title: Project Management
+description: Organize and manage projects within organizations
+---
+
+## Overview
+
+Projects are sub-resources within an organization that enable logical grouping of resources and users. They provide a way to organize your resources by team, product, environment, or any other logical boundary while maintaining fine-grained access control.
+
+<Note>
+  A single organization can contain multiple projects. Each project can have its own set of permissions and access controls.
+</Note>
+
+## Project Model
+
+<Tabs>
+  <Tab title="Model">
+    | Field | Type | Description |
+    |-------|------|-------------|
+    | **id** | uuid | Unique project identifier |
+    | **name** | string | Unique slug for the project. Must contain only alphanumeric characters, dashes, and underscores, and start with a letter. Example: `project-alpha` |
+    | **title** | string | Human-readable display name. Can contain any UTF-8 character. Example: `Project Alpha` |
+    | **orgId** | uuid | Organization ID that the project belongs to |
+    | **metadata** | object | Key-value pairs for additional information. Validated against Project MetaSchema |
+    | **state** | string | Current state: `enabled` or `disabled` |
+    | **createdAt** | timestamp | Creation timestamp |
+    | **updatedAt** | timestamp | Last update timestamp |
+    | **memberCount** | integer | Number of users with access to the project (transient field) |
+  </Tab>
+  
+  <Tab title="JSON Example">
+    ```json
+    {
+      "project": {
+        "id": "1b89026b-6713-4327-9d7e-ed03345da288",
+        "name": "project-alpha",
+        "title": "Project Alpha",
+        "orgId": "4eb3c3b4-962b-4b45-b55b-4c07d3810ca8",
+        "metadata": {
+          "description": "Production environment for Alpha product",
+          "labels": {
+            "env": "production",
+            "team": "engineering"
+          }
+        },
+        "state": "enabled",
+        "createdAt": "2022-12-07T14:31:46.436081Z",
+        "updatedAt": "2022-12-07T14:31:46.436081Z"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Roles and Permissions
+
+Frontier provides three predefined roles at the project level:
+
+| Role | Permissions | Description |
+|------|-------------|-------------|
+| **app_project_owner** | `app_project_administer` | Full control over the project including configuration, access control, and deletion |
+| **app_project_manager** | `app_project_update`<br/>`app_project_get`<br/>`app_organization_projectcreate`<br/>`app_organization_projectlist` | Can update project details, create new projects, and list projects |
+| **app_project_viewer** | `app_project_get` | Read-only access to project details and configurations |
+
+<Tip>
+  You can create custom roles with specific permissions at the project level. See [Custom Roles](#create-custom-roles) below.
+</Tip>
+
+## Access Control Patterns
+
+Frontier supports two access control patterns for projects:
+
+<CardGroup cols={2}>
+  <Card title="Project-Level Access" icon="folder">
+    Assign roles at the project level to grant access to **all resources** within the project. Ideal when users need consistent access across resources.
+    
+    Example: A user with `app_project_viewer` role can view all resources in the project.
+  </Card>
+  
+  <Card title="Resource-Level Access" icon="cube">
+    Create policies for **individual resources** within a project. Provides fine-grained control when different users need different access to specific resources.
+    
+    Example: User A has viewer access to Resource X but manager access to Resource Y, both in the same project.
+  </Card>
+</CardGroup>
+
+## Creating a Project
+
+Create a new project within an organization.
+
+<Steps>
+  <Step title="Identify the Organization">
+    Obtain the organization ID where you want to create the project.
+  </Step>
+  
+  <Step title="Prepare Project Details">
+    Choose a unique name and prepare metadata.
+  </Step>
+  
+  <Step title="Create via API">
+    Send a POST request to create the project.
+  </Step>
+</Steps>
+
+<Tabs>
+  <Tab title="HTTP">
+    ```bash
+    curl -L -X POST 'https://frontier.example.com/v1beta1/projects' \
+      -H 'Content-Type: application/json' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "name": "project-beta",
+        "title": "Project Beta",
+        "orgId": "4eb3c3b4-962b-4b45-b55b-4c07d3810ca8",
+        "metadata": {
+          "description": "Development environment for Beta features",
+          "labels": {
+            "env": "development",
+            "team": "product"
+          }
+        }
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="CLI">
+    ```bash
+    frontier project create --file project.yaml
+    ```
+    
+    Where `project.yaml` contains:
+    ```yaml
+    name: project-beta
+    title: Project Beta
+    orgId: 4eb3c3b4-962b-4b45-b55b-4c07d3810ca8
+    metadata:
+      description: Development environment for Beta features
+      labels:
+        env: development
+        team: product
+    ```
+  </Tab>
+  
+  <Tab title="Admin Portal">
+    1. Navigate to **Admin Portal > Projects** from the sidebar
+    2. Click **+ New Project** in the top right
+    3. Select the organization
+    4. Enter project details:
+       - Name (slug)
+       - Title
+       - Description
+       - Custom metadata
+    5. Click **Create Project**
+  </Tab>
+</Tabs>
+
+<Note>
+  **Authorization Required**: User must have `app_organization_projectcreate` permission in the organization.
+</Note>
+
+## Listing Projects
+
+### List All Projects (Admin)
+
+Retrieve all projects across all organizations (requires admin access).
+
+```bash
+curl -L -X GET 'https://frontier.example.com/v1beta1/admin/projects' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+### List Organization Projects
+
+Retrieve all projects within a specific organization.
+
+```bash
+curl -L -X GET 'https://frontier.example.com/v1beta1/organizations/{org_id}/projects' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    # List all projects
+    frontier project list
+    
+    # List projects for specific organization
+    frontier project list --org {org_id}
+    ```
+  </Tab>
+</Tabs>
+
+## Getting Project Details
+
+Retrieve detailed information about a specific project.
+
+<Tabs>
+  <Tab title="HTTP">
+    ```bash
+    curl -L -X GET 'https://frontier.example.com/v1beta1/projects/{project_id}' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>'
+    ```
+  </Tab>
+  
+  <Tab title="CLI">
+    ```bash
+    frontier project view {project_id} --metadata
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  **Authorization Required**: User must have `app_project_get` permission (Owner, Manager, or Viewer role).
+</Note>
+
+## Updating a Project
+
+Modify project details such as title or metadata.
+
+<Tabs>
+  <Tab title="HTTP">
+    ```bash
+    curl -L -X PUT 'https://frontier.example.com/v1beta1/projects/{project_id}' \
+      -H 'Content-Type: application/json' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "title": "Project Beta - Updated",
+        "metadata": {
+          "description": "Updated development environment",
+          "labels": {
+            "env": "staging",
+            "team": "product",
+            "version": "2.0"
+          }
+        }
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="CLI">
+    ```bash
+    frontier project edit {project_id} --file updated-project.yaml
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  **Authorization Required**: User must have `app_project_update` permission (Owner or Manager role).
+</Note>
+
+## Managing Project Members
+
+### Listing Project Users
+
+Retrieve all users who have access to a project (through direct policies or group membership).
+
+```bash
+curl -L -X GET 'https://frontier.example.com/v1beta1/projects/{project_id}/users' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+### Listing Project Admins
+
+Retrieve users with administrative access to the project.
+
+```bash
+curl -L -X GET 'https://frontier.example.com/v1beta1/projects/{project_id}/admins' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+### Creating Project Policies
+
+Grant users or groups access to a project by creating a policy.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/projects/{project_id}/policies' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data-raw '{
+    "roleId": "app_project_viewer",
+    "resource": "app/project:{project_id}",
+    "principal": "app/user:{user_id}"
+  }'
+```
+
+<Tabs>
+  <Tab title="User Access">
+    ```bash
+    # Grant user access to project
+    curl -L -X POST 'https://frontier.example.com/v1beta1/projects/{project_id}/policies' \
+      -H 'Content-Type: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "roleId": "app_project_manager",
+        "resource": "app/project:{project_id}",
+        "principal": "app/user:2e73f4a2-3763-4dc6-a00e-7a9aebeaa971"
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="Group Access">
+    ```bash
+    # Grant group access to project
+    curl -L -X POST 'https://frontier.example.com/v1beta1/projects/{project_id}/policies' \
+      -H 'Content-Type: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "roleId": "app_project_viewer",
+        "resource": "app/project:{project_id}",
+        "principal": "app/group:86e2f95d-92c7-4c59-8fed-b7686cccbf4f"
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="Service Account">
+    ```bash
+    # Grant service account access to project
+    curl -L -X POST 'https://frontier.example.com/v1beta1/projects/{project_id}/policies' \
+      -H 'Content-Type: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "roleId": "app_project_owner",
+        "resource": "app/project:{project_id}",
+        "principal": "app/serviceuser:f4641672-cfdc-493f-95f0-c440515ad032"
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  **Authorization Required**: User must have `app_project_administer` permission (Owner role).
+</Note>
+
+## Create Custom Roles
+
+Create custom roles with specific permissions at the project level.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/projects/{project_id}/roles' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data-raw '{
+    "name": "app_project_deployer",
+    "title": "Project Deployer",
+    "permissions": [
+      "app_project_get",
+      "app_project_resourcecreate",
+      "app_project_resourceupdate"
+    ],
+    "metadata": {
+      "description": "Can deploy resources but cannot delete"
+    }
+  }'
+```
+
+<Note>
+  **Important**: Specify the namespace as `app/project` to create project-level permissions.
+</Note>
+
+## State Management
+
+### Disabling a Project
+
+Temporarily suspend access to a project without deleting it. Resources remain intact but become inaccessible.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/projects/{project_id}/disable' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data '{}'
+```
+
+<Note>
+  **Authorization Required**: User must have `app_project_administer` permission (Owner role) or custom role with `delete` permission at `app/project` namespace.
+</Note>
+
+### Enabling a Project
+
+Restore access to a disabled project.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/projects/{project_id}/enable' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data '{}'
+```
+
+<Tip>
+  Disabling a project:
+  - Does not delete policies, resources, or users
+  - Blocks all access to project resources
+  - Can be used for maintenance windows or security holds
+  - Can be reversed by re-enabling
+</Tip>
+
+## Deleting a Project
+
+Permanently delete a project and all associated resources.
+
+```bash
+curl -L -X DELETE 'https://frontier.example.com/v1beta1/projects/{project_id}' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+<Warning>
+  **This action cannot be undone!**
+  
+  Deleting a project permanently removes:
+  - All resources within the project
+  - All policies associated with the project
+  - All access grants to project resources
+  
+  Users and groups are NOT deleted but lose access to the project's resources.
+</Warning>
+
+<Note>
+  **Authorization Required**: User must have `app_project_administer` permission (Owner role).
+</Note>
+
+## Common Patterns
+
+<Tabs>
+  <Tab title="Environment Separation">
+    ```
+    Organization: Acme Corp
+    ├── Project: Production
+    │   └── Resources: prod-db, prod-api, prod-cache
+    ├── Project: Staging
+    │   └── Resources: staging-db, staging-api, staging-cache
+    └── Project: Development
+        └── Resources: dev-db, dev-api, dev-cache
+    ```
+    
+    Create separate projects for each environment to isolate access and resources.
+  </Tab>
+  
+  <Tab title="Team Separation">
+    ```
+    Organization: Tech Company
+    ├── Project: Platform Team
+    │   └── Resources: infrastructure, monitoring, deployment
+    ├── Project: Backend Team
+    │   └── Resources: apis, services, databases
+    └── Project: Frontend Team
+        └── Resources: web-apps, mobile-apps
+    ```
+    
+    Organize projects by team to match your organizational structure.
+  </Tab>
+  
+  <Tab title="Product Separation">
+    ```
+    Organization: SaaS Company
+    ├── Project: Product A
+    │   └── Resources: product-a-api, product-a-db
+    ├── Project: Product B
+    │   └── Resources: product-b-api, product-b-db
+    └── Project: Shared Services
+        └── Resources: auth-service, payment-service
+    ```
+    
+    Create projects per product with a shared services project for common resources.
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Descriptive Naming" icon="tag">
+    Use clear, consistent naming conventions that indicate the project's purpose, environment, or team.
+  </Card>
+  
+  <Card title="Metadata Usage" icon="database">
+    Leverage metadata to store additional context like cost centers, owners, or custom tags for reporting.
+  </Card>
+  
+  <Card title="Least Privilege" icon="shield">
+    Grant the minimum permissions necessary. Use viewer roles by default and elevate only when needed.
+  </Card>
+  
+  <Card title="Regular Reviews" icon="clipboard-check">
+    Periodically audit project members and their access levels to ensure appropriate permissions.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Manage Resources" icon="cube" href="/organizations/resources">
+    Add resources to your projects
+  </Card>
+  
+  <Card title="Manage Groups" icon="users" href="/organizations/groups">
+    Create groups for easier access management
+  </Card>
+  
+  <Card title="Configure Policies" icon="shield" href="/authorization/policies">
+    Set up fine-grained access control
+  </Card>
+</CardGroup>

@@ -1,0 +1,658 @@
+---
+title: Billing Engine Configuration
+---
+
+Frontier uses Stripe as its billing engine to manage payments, subscriptions, invoices, and revenue operations. This guide covers configuring Frontier's billing capabilities.
+
+## Overview
+
+The billing engine supports:
+- Subscription management
+- One-time payments
+- Usage-based billing
+- Credit systems
+- Multi-currency support
+- Automated invoicing
+- Tax calculation
+- Payment methods (cards, customer balance)
+
+## Prerequisites
+
+- Active Stripe account ([sign up](https://dashboard.stripe.com/register))
+- Stripe API key (test or live)
+- Verified business information (for live mode)
+
+## Core Configuration
+
+### Stripe Integration
+
+<ParamField path="billing.stripe_key" type="string" required>
+  Stripe secret API key for authentication.
+  
+  ```yaml
+  billing:
+    stripe_key: "sk_test_51234567890abcdefghijklmnop"
+  ```
+  
+  **Key Types:**
+  - `sk_test_*` - Test mode (use for development)
+  - `sk_live_*` - Live mode (production)
+  
+  <Warning>
+  Never commit API keys to version control. Use environment variables.
+  </Warning>
+</ParamField>
+
+<ParamField path="billing.stripe_auto_tax" type="boolean" default="false">
+  Enable Stripe automatic tax calculation based on customer location.
+  
+  ```yaml
+  billing:
+    stripe_auto_tax: true
+  ```
+  
+  **Requirements:**
+  - Configure tax rates in Stripe Dashboard
+  - Enable Stripe Tax in your account
+  - Provide customer address information
+  
+  <Warning>
+  Test thoroughly before enabling in production. Ensure tax rates are configured correctly.
+  </Warning>
+</ParamField>
+
+<ParamField path="billing.stripe_webhook_secrets" type="array">
+  List of Stripe webhook signing secrets for event validation.
+  
+  ```yaml
+  billing:
+    stripe_webhook_secrets:
+      - "whsec_abc123..."
+      - "whsec_old456..."  # Keep old secret during rotation
+  ```
+  
+  Multiple secrets support key rotation without downtime.
+</ParamField>
+
+<ParamField path="billing.default_currency" type="string" default="usd">
+  Default currency for billing operations.
+  
+  ```yaml
+  billing:
+    default_currency: "usd"
+  ```
+  
+  **Examples:** `usd`, `eur`, `gbp`, `inr`, `jpy`
+  
+  Must be a valid [ISO 4217 currency code](https://en.wikipedia.org/wiki/ISO_4217).
+</ParamField>
+
+### Plans and Products
+
+<ParamField path="billing.plans_path" type="string">
+  Path to YAML files defining products and plans.
+  
+  ```yaml
+  billing:
+    plans_path: "file:///etc/frontier/plans"
+    # Or for GCS:
+    # plans_path: "gs://frontier-bucket/plans"
+  ```
+  
+  Plans are automatically synced to Stripe during application startup.
+</ParamField>
+
+#### Plans File Format
+
+Create YAML files defining your products and plans:
+
+<CodeGroup>
+```yaml plans/basic.yaml
+products:
+  - name: "basic-plan"
+    title: "Basic Plan"
+    description: "Essential features for small teams"
+    behavior: "per_seat"
+    prices:
+      - amount: 1000  # $10.00 (in cents)
+        currency: "usd"
+        interval: "month"
+      - amount: 10000
+        currency: "usd"
+        interval: "year"
+    features:
+      - name: "users"
+        title: "Team Members"
+        limit: 10
+      - name: "projects"
+        title: "Projects"
+        limit: 5
+```
+
+```yaml plans/professional.yaml
+products:
+  - name: "professional-plan"
+    title: "Professional Plan"
+    description: "Advanced features for growing teams"
+    behavior: "per_seat"
+    prices:
+      - amount: 2500  # $25.00
+        currency: "usd"
+        interval: "month"
+        tier_mode: "graduated"
+        tiers:
+          - up_to: 10
+            unit_amount: 2500
+          - up_to: 50
+            unit_amount: 2000
+          - up_to: null  # Unlimited
+            unit_amount: 1500
+    features:
+      - name: "users"
+        title: "Team Members"
+        limit: 50
+      - name: "projects"
+        title: "Projects"
+        limit: -1  # Unlimited
+```
+
+```yaml plans/usage-based.yaml
+products:
+  - name: "api-calls"
+    title: "API Calls"
+    description: "Pay for what you use"
+    behavior: "usage"
+    prices:
+      - currency: "usd"
+        interval: "month"
+        usage_type: "metered"
+        tier_mode: "volume"
+        tiers:
+          - up_to: 10000
+            unit_amount: 10  # $0.10 per call
+          - up_to: 100000
+            unit_amount: 8   # $0.08 per call
+          - up_to: null
+            unit_amount: 5   # $0.05 per call
+```
+</CodeGroup>
+
+## Customer Configuration
+
+<ParamField path="billing.customer.auto_create_with_org" type="boolean" default="true">
+  Automatically create a billing customer when an organization is created.
+  
+  ```yaml
+  billing:
+    customer:
+      auto_create_with_org: true
+  ```
+</ParamField>
+
+<ParamField path="billing.customer.default_plan" type="string">
+  Plan name to automatically subscribe new customers to.
+  
+  ```yaml
+  billing:
+    customer:
+      default_plan: "starter-plan"
+  ```
+  
+  The plan must exist in Stripe. Leave empty for no automatic subscription.
+</ParamField>
+
+<ParamField path="billing.customer.default_offline" type="boolean" default="false">
+  Create customer accounts in offline mode (not registered with Stripe).
+  
+  ```yaml
+  billing:
+    customer:
+      default_offline: false
+  ```
+  
+  Useful for enterprise customers with custom billing arrangements.
+</ParamField>
+
+<ParamField path="billing.customer.onboard_credits_with_org" type="integer" default="0">
+  Free credits to add when customer account is created (in smallest currency unit).
+  
+  ```yaml
+  billing:
+    customer:
+      onboard_credits_with_org: 10000  # $100.00 in USD
+  ```
+</ParamField>
+
+### Credit Overdraft Configuration
+
+<ParamField path="billing.customer.credit_overdraft_product" type="string">
+  Product name for calculating overdraft credit costs.
+  
+  ```yaml
+  billing:
+    customer:
+      credit_overdraft_product: "credit-unit"
+  ```
+  
+  Uses the first price of this product to determine per-unit cost.
+</ParamField>
+
+<ParamField path="billing.customer.credit_overdraft_invoice_day" type="integer" default="1">
+  Day of the month (1-31) when overdraft credits are invoiced.
+  
+  ```yaml
+  billing:
+    customer:
+      credit_overdraft_invoice_day: 1  # First day of month
+  ```
+</ParamField>
+
+<ParamField path="billing.customer.credit_overdraft_invoice_range_shift" type="integer" default="0">
+  Shift invoice range for overdraft credits by N months.
+  
+  ```yaml
+  billing:
+    customer:
+      credit_overdraft_invoice_range_shift: 0
+      # Positive: future months
+      # Negative: past months
+  ```
+</ParamField>
+
+## Plan Change Configuration
+
+<ParamField path="billing.plan_change.proration_behavior" type="string" default="create_prorations">
+  How to handle proration when subscription plan changes.
+  
+  **Options:**
+  - `create_prorations` - Create proration items for plan changes
+  - `none` - Don't create proration items
+  - `always_invoice` - Invoice immediately for plan changes
+  
+  ```yaml
+  billing:
+    plan_change:
+      proration_behavior: "create_prorations"
+  ```
+</ParamField>
+
+<ParamField path="billing.plan_change.immediate_proration_behavior" type="string" default="create_prorations">
+  Proration behavior for immediate plan changes (not waiting for next billing cycle).
+  
+  ```yaml
+  billing:
+    plan_change:
+      immediate_proration_behavior: "create_prorations"
+  ```
+</ParamField>
+
+<ParamField path="billing.plan_change.collection_method" type="string" default="charge_automatically">
+  Payment collection method for plan changes.
+  
+  **Options:**
+  - `charge_automatically` - Charge payment method automatically
+  - `send_invoice` - Send invoice for manual payment
+  
+  ```yaml
+  billing:
+    plan_change:
+      collection_method: "charge_automatically"
+  ```
+</ParamField>
+
+## Subscription Configuration
+
+<ParamField path="billing.subscription.behaviour_after_trial" type="string" default="release">
+  Behavior when trial period ends.
+  
+  **Options:**
+  - `release` - Start paid subscription
+  - `cancel` - Cancel subscription (no invoice generated)
+  
+  ```yaml
+  billing:
+    subscription:
+      behaviour_after_trial: "release"
+  ```
+</ParamField>
+
+## Product Configuration
+
+<ParamField path="billing.product.seat_change_behavior" type="string" default="exact">
+  How seat count adjusts when users are added/removed from organizations.
+  
+  **Options:**
+  - `exact` - Seat count matches user count (increases and decreases)
+  - `incremental` - Seat count increases with users but never decreases
+  
+  ```yaml
+  billing:
+    product:
+      seat_change_behavior: "exact"
+  ```
+  
+  Use `incremental` for "purchased seats" model where seats remain available even when users leave.
+</ParamField>
+
+## Payment Method Configuration
+
+<ParamField path="billing.payment_method_config" type="array">
+  Configure payment method limits and restrictions.
+  
+  ```yaml
+  billing:
+    payment_method_config:
+      - type: card
+        min: 100      # $1.00 minimum
+        max: 500000   # $5,000.00 maximum
+      - type: customer_balance
+        min: 100000   # $1,000.00 minimum
+        # No max limit
+  ```
+  
+  **Supported types:** `card`, `customer_balance`
+  
+  Amounts are in smallest currency unit (cents for USD).
+</ParamField>
+
+## Refresh Intervals
+
+<ParamField path="billing.refresh_interval" type="object">
+  How often to sync billing data with Stripe.
+  
+  ```yaml
+  billing:
+    refresh_interval:
+      customer: 1m
+      subscription: 1m
+      invoice: 5m
+      checkout: 1m
+  ```
+  
+  <Warning>
+  Setting intervals too low can lead to Stripe API rate limiting.
+  </Warning>
+</ParamField>
+
+## Complete Examples
+
+<CodeGroup>
+```yaml Development
+billing:
+  stripe_key: "sk_test_51234567890abcdef"
+  stripe_auto_tax: false
+  stripe_webhook_secrets:
+    - "whsec_test123"
+  plans_path: "file:///tmp/plans"
+  default_currency: "usd"
+  
+  customer:
+    auto_create_with_org: true
+    default_plan: "starter"
+    default_offline: false
+    onboard_credits_with_org: 10000  # $100 free credits
+  
+  plan_change:
+    proration_behavior: "create_prorations"
+    immediate_proration_behavior: "create_prorations"
+    collection_method: "charge_automatically"
+  
+  subscription:
+    behaviour_after_trial: "release"
+  
+  product:
+    seat_change_behavior: "exact"
+  
+  payment_method_config:
+    - type: card
+    - type: customer_balance
+  
+  refresh_interval:
+    customer: 1m
+    subscription: 1m
+    invoice: 5m
+    checkout: 1m
+```
+
+```yaml Production
+billing:
+  stripe_key: "${STRIPE_SECRET_KEY}"
+  stripe_auto_tax: true
+  stripe_webhook_secrets:
+    - "${STRIPE_WEBHOOK_SECRET}"
+  plans_path: "gs://frontier-prod/plans"
+  default_currency: "usd"
+  
+  customer:
+    auto_create_with_org: true
+    default_plan: "professional"
+    default_offline: false
+    onboard_credits_with_org: 5000  # $50
+    credit_overdraft_product: "credit-unit"
+    credit_overdraft_invoice_day: 1
+    credit_overdraft_invoice_range_shift: 0
+  
+  plan_change:
+    proration_behavior: "create_prorations"
+    immediate_proration_behavior: "always_invoice"
+    collection_method: "charge_automatically"
+  
+  subscription:
+    behaviour_after_trial: "release"
+  
+  product:
+    seat_change_behavior: "exact"
+  
+  payment_method_config:
+    - type: card
+      max: 1000000  # $10,000 max per card
+    - type: customer_balance
+      min: 100000   # $1,000 min for balance
+  
+  refresh_interval:
+    customer: 2m
+    subscription: 2m
+    invoice: 10m
+    checkout: 2m
+```
+
+```bash Environment Variables
+export FRONTIER_SERVICE_BILLING_STRIPE_KEY="sk_live_..."
+export FRONTIER_SERVICE_BILLING_STRIPE_AUTO_TAX=true
+export FRONTIER_SERVICE_BILLING_DEFAULT_CURRENCY="usd"
+export FRONTIER_SERVICE_BILLING_CUSTOMER_DEFAULT_PLAN="professional"
+export FRONTIER_SERVICE_BILLING_CUSTOMER_AUTO_CREATE_WITH_ORG=true
+```
+</CodeGroup>
+
+## Webhook Setup
+
+Configure Stripe webhooks to receive events:
+
+1. **Create Webhook Endpoint in Stripe**
+   
+   Go to [Stripe Dashboard → Webhooks](https://dashboard.stripe.com/webhooks)
+   
+   Endpoint URL: `https://your-domain.com/v1beta1/webhooks/stripe`
+
+2. **Select Events**
+   
+   Listen for these events:
+   - `customer.created`
+   - `customer.updated`
+   - `customer.deleted`
+   - `invoice.created`
+   - `invoice.finalized`
+   - `invoice.paid`
+   - `invoice.payment_failed`
+   - `subscription.created`
+   - `subscription.updated`
+   - `subscription.deleted`
+   - `checkout.session.completed`
+   - `payment_intent.succeeded`
+   - `payment_intent.payment_failed`
+
+3. **Get Webhook Secret**
+   
+   Copy the webhook signing secret (`whsec_...`) and add to configuration:
+   
+   ```yaml
+   billing:
+     stripe_webhook_secrets:
+       - "whsec_abc123..."
+   ```
+
+4. **Test Webhook**
+   
+   Use Stripe CLI to test locally:
+   
+   ```bash
+   stripe listen --forward-to localhost:8000/v1beta1/webhooks/stripe
+   ```
+
+## Testing
+
+### Test Mode
+
+Use Stripe test mode for development:
+
+```yaml
+billing:
+  stripe_key: "sk_test_..."
+```
+
+**Test Cards:**
+- `4242424242424242` - Successful payment
+- `4000000000000002` - Card declined
+- `4000002500003155` - Requires authentication (3D Secure)
+
+### Stripe CLI
+
+Install and use Stripe CLI for testing:
+
+```bash
+# Install
+brew install stripe/stripe-cli/stripe
+
+# Login
+stripe login
+
+# Listen for webhooks
+stripe listen --forward-to localhost:8000/v1beta1/webhooks/stripe
+
+# Trigger events
+stripe trigger payment_intent.succeeded
+stripe trigger customer.subscription.updated
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Problem:** Invalid API key
+```
+Solution:
+- Verify stripe_key starts with sk_test_ or sk_live_
+- Check key hasn't been revoked in Stripe Dashboard
+- Ensure no extra whitespace in key
+```
+
+**Problem:** Webhook signature verification failed
+```
+Solution:
+- Verify stripe_webhook_secrets matches Stripe Dashboard
+- Check webhook endpoint URL is correct
+- Ensure webhook secret is for correct endpoint
+- Add old secret during key rotation
+```
+
+**Problem:** Plan not found
+```
+Solution:
+- Verify plans_path is accessible
+- Check plan YAML syntax is correct
+- Ensure plan was synced to Stripe (check logs)
+- Verify plan name matches exactly (case-sensitive)
+```
+
+**Problem:** Subscription creation fails
+```
+Solution:
+- Verify customer has valid payment method
+- Check product/price exists in Stripe
+- Review Stripe logs for specific error
+- Ensure customer isn't already subscribed
+```
+
+**Problem:** Tax calculation not working
+```
+Solution:
+- Enable Stripe Tax in Dashboard
+- Configure tax rates for customer locations
+- Ensure stripe_auto_tax is true
+- Provide complete customer address
+```
+
+### Debug Mode
+
+Enable debug logging:
+
+```yaml
+log:
+  level: debug
+```
+
+Check Stripe API logs at [Dashboard → Developers → Logs](https://dashboard.stripe.com/logs).
+
+## Best Practices
+
+1. **Use Test Mode for Development**
+   - Always use test keys (`sk_test_*`) during development
+   - Switch to live keys only in production
+
+2. **Secure API Keys**
+   ```bash
+   # Use environment variables
+   export STRIPE_SECRET_KEY="sk_live_..."
+   
+   # Never commit to git
+   echo "*.env" >> .gitignore
+   ```
+
+3. **Configure Webhooks**
+   - Always set up webhooks for reliable event handling
+   - Use webhook signing secrets for security
+   - Handle webhook retries gracefully
+
+4. **Monitor Billing**
+   - Set up Stripe Dashboard alerts
+   - Monitor failed payments
+   - Track subscription churn
+   - Review dispute notifications
+
+5. **Handle Errors Gracefully**
+   - Implement retry logic for transient failures
+   - Log all billing errors
+   - Notify customers of payment issues
+   - Provide clear error messages
+
+6. **Test Thoroughly**
+   - Test all payment scenarios
+   - Verify proration calculations
+   - Test plan upgrades/downgrades
+   - Validate tax calculations
+   - Test webhook event handling
+
+7. **Plan for Scale**
+   - Set appropriate refresh intervals
+   - Monitor Stripe API rate limits
+   - Consider caching billing data
+   - Use webhooks instead of polling
+
+## See Also
+
+- [Server Configuration](/configuration/server)
+- [Billing Concepts](/concepts/billing)
+- [Subscription Management Guide](/guides/subscriptions)
+- [Stripe Documentation](https://stripe.com/docs)
+- [Stripe API Reference](https://stripe.com/docs/api)

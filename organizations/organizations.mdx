@@ -1,0 +1,451 @@
+---
+title: Organization Management
+description: Create and manage organizations in Frontier
+---
+
+## Overview
+
+An Organization is the top-level resource in Frontier, representing a tenant in your system. Each organization contains projects, groups, users, and audit logs. Organizations are completely isolated from each other, providing strong multi-tenancy boundaries.
+
+<Note>
+  An organization slug must be unique across the entire Frontier deployment. No two organizations can have the same slug.
+</Note>
+
+## Organization Model
+
+<Tabs>
+  <Tab title="Model">
+    | Field | Type | Description |
+    |-------|------|-------------|
+    | **id** | uuid | Unique organization identifier |
+    | **name** | string | Unique slug for the organization. Must contain only alphanumeric characters, dashes, and underscores. Example: `frontier-org1-acme` |
+    | **title** | string | Human-readable display name. Can contain any UTF-8 character. Example: `Acme Inc` |
+    | **metadata** | object | Key-value pairs for additional information like labels and descriptions. Validated against Organization MetaSchema |
+    | **state** | string | Current state: `enabled` or `disabled` |
+    | **avatar** | string | URL to organization avatar image |
+    | **createdAt** | timestamp | Creation timestamp |
+    | **updatedAt** | timestamp | Last update timestamp |
+  </Tab>
+  
+  <Tab title="JSON Example">
+    ```json
+    {
+      "organization": {
+        "id": "4eb3c3b4-962b-4b45-b55b-4c07d3810ca8",
+        "name": "open-dataops-foundation",
+        "title": "Raystack",
+        "metadata": {
+          "description": "Open DataOps Foundation",
+          "labels": {
+            "env": "production",
+            "region": "us-west"
+          }
+        },
+        "state": "enabled",
+        "createdAt": "2023-05-07T14:10:42.755848Z",
+        "updatedAt": "2023-05-07T14:10:42.755848Z"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Roles and Permissions
+
+Frontier provides three predefined roles at the organization level:
+
+| Role | Permissions | Description |
+|------|-------------|-------------|
+| **app_organization_owner** | `app_organization_administer` | Full control over the organization. Can create, update, delete, and manage all aspects |
+| **app_organization_manager** | `app_organization_update`<br/>`app_organization_get` | Can update and manage the organization but cannot delete it |
+| **app_organization_viewer** | `app_organization_get` | Read-only access to organization information |
+
+<Tip>
+  Organization owners can create custom roles with specific permissions tailored to their needs. See [Custom Roles](#create-custom-roles) below.
+</Tip>
+
+## Creating an Organization
+
+Any authenticated user can create an organization. The creator automatically becomes the Organization Owner.
+
+<Steps>
+  <Step title="Prepare Organization Details">
+    Choose a unique name (slug) and prepare any metadata you want to include.
+  </Step>
+  
+  <Step title="Create via API">
+    Send a POST request to create the organization.
+  </Step>
+  
+  <Step title="Verify Creation">
+    The creator is automatically assigned the `app_organization_owner` role.
+  </Step>
+</Steps>
+
+<Tabs>
+  <Tab title="HTTP">
+    ```bash
+    curl -L -X POST 'https://frontier.example.com/v1beta1/organizations' \
+      -H 'Content-Type: application/json' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "name": "raystack",
+        "title": "Raystack Foundation",
+        "metadata": {
+          "description": "Open source data platform",
+          "labels": {
+            "industry": "technology",
+            "size": "startup"
+          }
+        }
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="CLI">
+    ```bash
+    frontier organization create --file organization.json
+    ```
+    
+    Where `organization.json` contains:
+    ```json
+    {
+      "name": "raystack",
+      "title": "Raystack Foundation",
+      "metadata": {
+        "description": "Open source data platform"
+      }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Admin Portal">
+    1. Navigate to **Admin Portal > Organizations** from the sidebar
+    2. Click **+ New Organization** in the top right
+    3. Enter organization details:
+       - Name (slug)
+       - Title
+       - Description
+       - Any custom metadata
+    4. Click **Add Organization**
+  </Tab>
+</Tabs>
+
+<Note>
+  **Authorization Required**: User must be authenticated. No specific roles or permissions required to create an organization.
+</Note>
+
+## Listing Organizations
+
+Retrieve all organizations that the authenticated user has access to.
+
+<Tabs>
+  <Tab title="HTTP">
+    ```bash
+    curl -L -X GET 'https://frontier.example.com/v1beta1/organizations' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>'
+    ```
+  </Tab>
+  
+  <Tab title="CLI">
+    ```bash
+    frontier organization list
+    ```
+  </Tab>
+</Tabs>
+
+## Getting Organization Details
+
+Retrieve detailed information about a specific organization.
+
+<Tabs>
+  <Tab title="HTTP">
+    ```bash
+    curl -L -X GET 'https://frontier.example.com/v1beta1/organizations/{org_id}' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>'
+    ```
+  </Tab>
+  
+  <Tab title="CLI">
+    ```bash
+    frontier organization view {org_id}
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  **Authorization Required**: User must have `app_organization_get` permission (Owner, Manager, or Viewer role).
+</Note>
+
+## Updating an Organization
+
+Modify organization details such as title, metadata, or avatar.
+
+<Tabs>
+  <Tab title="HTTP">
+    ```bash
+    curl -L -X PUT 'https://frontier.example.com/v1beta1/organizations/{org_id}' \
+      -H 'Content-Type: application/json' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "title": "Raystack Foundation - Updated",
+        "metadata": {
+          "description": "Updated description",
+          "labels": {
+            "env": "production"
+          }
+        }
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="CLI">
+    ```bash
+    frontier organization edit {org_id} --file updated-org.json
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  **Authorization Required**: User must have `app_organization_update` permission (Owner or Manager role).
+</Note>
+
+## Managing Users
+
+### Adding Users to an Organization
+
+Add existing Frontier users to an organization. Users must already exist in Frontier before being added.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/users' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data-raw '{
+    "userIds": [
+      "2e73f4a2-3763-4dc6-a00e-7a9aebeaa971",
+      "8f92b4c3-9a81-4d2e-b5c6-1e8f7d9c2b4a"
+    ]
+  }'
+```
+
+<Note>
+  **Authorization Required**: Organization Admin or Manager role, or custom role with `update` permission at `app/organization` namespace.
+</Note>
+
+### Inviting Users
+
+Invite users by email to join an organization and optionally add them to specific groups. Invitations expire after 7 days.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/invitations' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data-raw '{
+    "userId": "john.doe@example.com",
+    "groupIds": [
+      "4e76f4a2-3763-4dc6-b00e-7a9a5beaa923",
+      "2e45f4a2-1539-4df6-a70e-7a9aebeaa952"
+    ]
+  }'
+```
+
+<Note>
+  **Authorization Required**: Organization Admin role or custom role with `invitationcreate` permission at `app/organization` namespace.
+</Note>
+
+### Listing Organization Users
+
+Retrieve all human users in an organization (excludes service accounts).
+
+```bash
+curl -L -X GET 'https://frontier.example.com/v1beta1/organizations/{org_id}/users' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+<Note>
+  **Authorization Required**: Any organization member with `app_organization_get` permission (Owner, Manager, or Viewer).
+</Note>
+
+### Listing Pending Invitations
+
+View all pending invitations that haven't been accepted or rejected.
+
+```bash
+curl -L -X GET 'https://frontier.example.com/v1beta1/organizations/{org_id}/invitations' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+<Note>
+  **Authorization Required**: Organization Admin role or custom role with `invitationlist` or `invitationcreate` permission.
+</Note>
+
+### Deleting an Invitation
+
+Remove a pending invitation before it's accepted.
+
+```bash
+curl -L -X DELETE 'https://frontier.example.com/v1beta1/organizations/{org_id}/invitations/{invitation_id}' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+<Note>
+  **Authorization Required**: Organization Admin, the invited user, or custom role with `invitationcreate` permission.
+</Note>
+
+### Removing Users
+
+Remove a user from an organization. The user is removed from all groups and loses access to all organization resources.
+
+```bash
+curl -L -X DELETE 'https://frontier.example.com/v1beta1/organizations/{org_id}/users/{user_id}' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+<Warning>
+  Removing a user from an organization removes them from all groups and revokes all access to projects and resources. The user account itself is not deleted from Frontier.
+</Warning>
+
+<Note>
+  **Authorization Required**: Organization Admin or Manager role, or custom role with `update` permission at `app/organization` namespace.
+</Note>
+
+## Create Custom Roles
+
+Create custom roles with specific permissions tailored to your organization's needs.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/roles' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data-raw '{
+    "name": "app_organization_member",
+    "title": "Organization Member",
+    "permissions": [
+      "app_organization_get",
+      "app_organization_update",
+      "app_organization_invitationcreate"
+    ],
+    "metadata": {
+      "description": "Custom role for managing invitations"
+    }
+  }'
+```
+
+<Note>
+  **Authorization Required**: Organization Admin role or custom role with `rolemanage` permission at `app/organization` namespace.
+  
+  **Important**: Specify the namespace as `app/organization` to create an organization-level custom permission.
+</Note>
+
+## State Management
+
+### Disabling an Organization
+
+Temporarily suspend an organization's access without deleting it. Existing users cannot access any organization resources when disabled.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/disable' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data '{}'
+```
+
+<Note>
+  **Authorization Required**: Organization Admin role or custom role with `delete` permission at `app/organization` namespace.
+</Note>
+
+### Enabling an Organization
+
+Restore access to a disabled organization.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/enable' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data '{}'
+```
+
+<Tip>
+  Disabling an organization is useful for:
+  - Temporary service suspension
+  - Organizational restructuring
+  - Security incidents
+  - Maintenance windows
+  
+  Unlike deletion, disabling can be reversed by re-enabling the organization.
+</Tip>
+
+## Deleting an Organization
+
+Permanently delete an organization and all associated data.
+
+```bash
+curl -L -X DELETE 'https://frontier.example.com/v1beta1/organizations/{org_id}' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+<Warning>
+  **This action cannot be undone!**
+  
+  Deleting an organization permanently removes:
+  - All projects and resources
+  - All groups
+  - All policies and access grants
+  - All audit logs
+  
+  User accounts are NOT deleted but will lose all access to the organization's resources.
+</Warning>
+
+<Note>
+  **Authorization Required**: Organization Admin role or custom role with `delete` permission at `app/organization` namespace.
+</Note>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Naming Conventions" icon="tag">
+    Use consistent, descriptive names for organizations. Include tenant identifiers or customer names for easy identification.
+  </Card>
+  
+  <Card title="Metadata Management" icon="database">
+    Leverage metadata fields to store additional context like billing IDs, support tiers, or custom labels.
+  </Card>
+  
+  <Card title="Regular Audits" icon="clipboard-check">
+    Periodically review organization members and their roles to ensure appropriate access.
+  </Card>
+  
+  <Card title="State Management" icon="power-off">
+    Use the disable feature instead of deletion for temporary suspensions to preserve data and simplify re-enabling.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Manage Projects" icon="folder" href="/organizations/projects">
+    Create projects to organize resources
+  </Card>
+  
+  <Card title="Manage Groups" icon="users" href="/organizations/groups">
+    Set up groups for user management
+  </Card>
+  
+  <Card title="Access Control" icon="shield" href="/authorization/policies">
+    Configure policies and permissions
+  </Card>
+</CardGroup>

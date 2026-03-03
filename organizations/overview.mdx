@@ -1,0 +1,213 @@
+---
+title: Multi-Tenancy Overview
+description: Understanding Frontier's multi-tenancy model and resource hierarchy
+---
+
+## Introduction
+
+Frontier provides a comprehensive multi-tenancy model that enables you to build secure, scalable applications with fine-grained access control. At its core, Frontier organizes resources in a hierarchical structure that mirrors real-world organizational patterns.
+
+## Hierarchy Structure
+
+Frontier's multi-tenancy is built on a four-level hierarchy:
+
+<Steps>
+  <Step title="Organizations">
+    Top-level tenants that represent your customers or business units. Organizations are completely isolated from each other.
+  </Step>
+  
+  <Step title="Projects">
+    Logical groupings within an organization that contain related resources and users. Projects enable you to organize resources by team, product, or environment.
+  </Step>
+  
+  <Step title="Groups">
+    Collections of users within an organization that simplify access management. Groups allow you to assign permissions to multiple users at once.
+  </Step>
+  
+  <Step title="Resources">
+    Individual entities that require access control, such as databases, APIs, or custom application resources. Resources always belong to a project.
+  </Step>
+</Steps>
+
+## Hierarchy Diagram
+
+```
+Organization (Tenant)
+├── Users
+├── Groups
+│   └── Group Members (Users)
+├── Projects
+│   ├── Resources
+│   ├── Policies
+│   └── Project Members
+└── Organization-level Policies
+```
+
+## Key Concepts
+
+### Organizations as Tenants
+
+Each organization in Frontier represents a distinct tenant with:
+
+- **Unique Identity**: Organizations have unique slugs across the entire Frontier instance
+- **Isolated Resources**: Users, groups, projects, and resources are scoped to their organization
+- **Independent Policies**: Each organization maintains its own access control policies
+- **Shared Users**: Users can belong to multiple organizations using the same identity
+
+<CardGroup cols={2}>
+  <Card title="Organization Owner" icon="crown">
+    Full control over the organization, including creating projects, managing users, and configuring policies
+  </Card>
+  
+  <Card title="Organization Manager" icon="user-tie">
+    Can update organization settings and manage members, but cannot delete the organization
+  </Card>
+  
+  <Card title="Organization Viewer" icon="eye">
+    Read-only access to organization information and resources
+  </Card>
+  
+  <Card title="Custom Roles" icon="sliders">
+    Create custom roles with specific permissions tailored to your needs
+  </Card>
+</CardGroup>
+
+### Projects for Resource Grouping
+
+Projects serve as containers for resources and provide:
+
+- **Logical Separation**: Group resources by team, product, environment (dev/staging/prod), or any other logical boundary
+- **Scoped Permissions**: Assign roles at the project level to grant access to all resources within
+- **Resource Lifecycle**: Manage related resources together
+
+### Groups for User Management
+
+Groups simplify access management by:
+
+- **Bulk Permissions**: Assign permissions to a group instead of individual users
+- **Team Representation**: Mirror your organizational structure with engineering, product, or business teams
+- **Dynamic Membership**: Add or remove users from groups without changing policies
+
+### Resources for Access Control
+
+Resources represent the actual entities in your system:
+
+- **Custom Namespaces**: Define your own resource types (e.g., `compute/instance`, `database/postgres`)
+- **URN Identification**: Each resource has a unique URN (Frontier Resource Name)
+- **Fine-grained Access**: Control access at the individual resource level
+
+## Multi-Tenancy Patterns
+
+<Tabs>
+  <Tab title="Single Organization">
+    Suitable for internal tools or single-tenant applications:
+    
+    ```
+    Organization: Acme Corp
+    ├── Project: Production
+    │   ├── Resource: prod-database
+    │   └── Resource: prod-api
+    ├── Project: Staging
+    │   ├── Resource: staging-database
+    │   └── Resource: staging-api
+    └── Groups: Engineering, DevOps, Product
+    ```
+  </Tab>
+  
+  <Tab title="Multiple Organizations">
+    Suitable for SaaS applications with multiple customers:
+    
+    ```
+    Organization: Customer A
+    ├── Project: Customer A Production
+    └── Project: Customer A Development
+    
+    Organization: Customer B
+    ├── Project: Customer B Production
+    └── Project: Customer B Development
+    ```
+  </Tab>
+  
+  <Tab title="Hybrid Model">
+    Combines both patterns for complex scenarios:
+    
+    ```
+    Organization: Platform Team
+    ├── Project: Shared Infrastructure
+    └── Project: Monitoring
+    
+    Organization: Customer X
+    ├── Project: Customer X App
+    └── Groups: Customer X Admins, Customer X Users
+    ```
+  </Tab>
+</Tabs>
+
+## User Membership
+
+Users in Frontier have flexible membership:
+
+- **Multiple Organizations**: A single user can belong to multiple organizations
+- **Consistent Identity**: Users maintain the same identity across all organizations
+- **Context Switching**: Users can switch between organizations without re-authentication
+- **Per-Organization Roles**: Users can have different roles in different organizations
+
+<Note>
+  When a user belongs to multiple organizations, their permissions are evaluated independently for each organization. A user who is an admin in Organization A has no special privileges in Organization B by default.
+</Note>
+
+## Access Control Model
+
+Frontier uses a relationship-based access control (ReBAC) model:
+
+1. **Subjects**: Users, groups, or service accounts that request access
+2. **Resources**: Organizations, projects, or custom resources being accessed
+3. **Relations**: Connections between subjects and resources (e.g., "owner", "member")
+4. **Permissions**: Actions that can be performed (e.g., "get", "update", "delete")
+
+<Tip>
+  Permissions can be granted at any level of the hierarchy and automatically cascade down. For example, an Organization Owner has access to all projects and resources within that organization.
+</Tip>
+
+## State Management
+
+All major entities in Frontier support state management:
+
+<CardGroup cols={2}>
+  <Card title="Enabled State" icon="circle-check">
+    The default state. Resources are accessible and users can perform authorized actions.
+  </Card>
+  
+  <Card title="Disabled State" icon="circle-xmark">
+    Temporarily suspends access without deleting the entity. Useful for maintenance or security holds.
+  </Card>
+</CardGroup>
+
+Disabling an organization or project:
+- Does not delete users, groups, or policies
+- Blocks all access to resources
+- Can be reversed by re-enabling
+
+<Warning>
+  Deleting an organization or project is permanent and cannot be undone. All associated resources, policies, and access grants are permanently removed. Users themselves are not deleted but lose all access to the organization's resources.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Manage Organizations" icon="building" href="/organizations/organizations">
+    Learn how to create and manage organizations
+  </Card>
+  
+  <Card title="Manage Projects" icon="folder" href="/organizations/projects">
+    Organize resources with projects
+  </Card>
+  
+  <Card title="Manage Groups" icon="users" href="/organizations/groups">
+    Simplify user management with groups
+  </Card>
+  
+  <Card title="Manage Resources" icon="cube" href="/organizations/resources">
+    Control access to your resources
+  </Card>
+</CardGroup>

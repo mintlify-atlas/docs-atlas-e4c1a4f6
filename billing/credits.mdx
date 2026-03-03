@@ -1,0 +1,520 @@
+---
+title: Virtual Credits
+description: Implement pay-as-you-go pricing with virtual credits for usage-based billing
+---
+
+## Overview
+
+Virtual credits are a form of currency that enables pay-as-you-go pricing models where customers are charged based on their actual usage. Unlike subscriptions that provide access to features, credits are consumed when customers use specific services or resources.
+
+Credits are ideal for:
+- **API call pricing**: Charge per API request or batch of requests
+- **Compute resources**: Bill for processing time, storage, or bandwidth
+- **Service units**: Token-based access to services like support hours or consulting time
+- **Flexible top-ups**: Allow customers to purchase credits as needed
+
+## Credit System Architecture
+
+Frontier implements credits using a double-entry bookkeeping system:
+
+- **Credit transactions**: Add credits to customer accounts (purchases, awards)
+- **Debit transactions**: Remove credits from accounts (usage consumption)
+- **Balance calculation**: Sum of credits minus sum of debits
+- **Dual entries**: Each transaction creates two entries (customer and system accounts)
+
+<Note>
+Double-entry bookkeeping ensures balance accuracy and consistency. For example, when a customer purchases 100 credits, a credit transaction adds 100 to their account while a debit transaction removes 100 from the system account.
+</Note>
+
+## Transaction Types
+
+### Credit Transactions
+
+Add credits to a customer account:
+
+| Source | Description |
+|--------|-------------|
+| `system.buy` | Credits purchased by customer |
+| `system.awarded` | Credits awarded by platform (promotions, rewards) |
+| `system.starter` | Onboarding credits for new customers |
+| `system.revert` | Credits restored from reversed usage |
+| `system.overdraft` | Overdraft credits (if enabled) |
+
+### Debit Transactions
+
+Remove credits from a customer account:
+
+| Source | Description |
+|--------|-------------|
+| Usage reporting | Credits consumed via usage APIs |
+| Manual adjustments | Platform-initiated debits |
+
+## Purchasing Credits
+
+Customers purchase credits by buying products with `credits` behavior through checkout sessions.
+
+### Create Credit Product
+
+Define a product that awards credits when purchased:
+
+```yaml
+products:
+  - name: support_credits
+    title: Support Credits
+    description: Purchase support hours as credits
+    behavior: credits
+    config:
+      credit_amount: 100  # Credits awarded per purchase
+    prices:
+      - name: default
+        amount: 20000  # $200.00 in cents
+        currency: usd
+```
+
+### Purchase Flow
+
+<Steps>
+  <Step title="Create Checkout Session">
+    Customer initiates checkout for a credit product.
+  </Step>
+  
+  <Step title="Complete Payment">
+    Customer completes payment through Stripe Checkout.
+  </Step>
+  
+  <Step title="Credits Awarded">
+    Upon successful payment, credits are automatically added to the customer's account.
+  </Step>
+  
+  <Step title="Transaction Created">
+    A credit transaction with source `system.buy` is recorded.
+  </Step>
+</Steps>
+
+### Create Checkout for Credits
+
+<CodeGroup>
+```bash cURL
+curl -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/checkouts' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <token>' \
+  -d '{
+    "success_url": "https://example.com/success",
+    "cancel_url": "https://example.com/cancel",
+    "feature_body": {
+      "feature": "support_credits"
+    }
+  }'
+```
+
+```json Response
+{
+  "checkout_session": {
+    "id": "cs_123",
+    "checkout_url": "https://checkout.stripe.com/pay/cs_test_123",
+    "success_url": "https://example.com/success",
+    "cancel_url": "https://example.com/cancel",
+    "created_at": "2024-03-01T00:00:00Z",
+    "expire_at": "2024-03-02T00:00:00Z"
+  }
+}
+```
+</CodeGroup>
+
+## Consuming Credits
+
+Report usage to consume credits from a customer's account.
+
+### Report Usage
+
+<CodeGroup>
+```bash cURL
+curl -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/usages' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <token>' \
+  -d '{
+    "amount": 20,
+    "source": "api_calls",
+    "description": "ML model inference - 100 requests",
+    "user_id": "user_123",
+    "metadata": {
+      "model": "gpt-4",
+      "requests": "100"
+    }
+  }'
+```
+
+```json Response
+{
+  "usage": {
+    "id": "usage_123",
+    "customer_id": "cus_123",
+    "amount": 20,
+    "source": "api_calls",
+    "description": "ML model inference - 100 requests",
+    "user_id": "user_123",
+    "created_at": "2024-03-01T10:30:00Z"
+  }
+}
+```
+</CodeGroup>
+
+**Parameters:**
+
+- `amount`: Number of credits to consume (required)
+- `source`: Source application or event triggering usage (required)
+- `description`: Human-readable description of usage (optional)
+- `user_id`: ID of user who initiated usage (optional)
+- `metadata`: Additional custom data (optional)
+
+<Warning>
+If the customer doesn't have enough credits, the request will fail with `insufficient credits` error. Ensure you check balance before reporting usage or handle the error gracefully.
+</Warning>
+
+### Usage Example
+
+Here's a real-world example of reporting credit usage:
+
+```javascript
+// After running ML inference
+const requestCount = 100;
+const creditsPerRequest = 0.2;
+const totalCredits = requestCount * creditsPerRequest; // 20 credits
+
+const response = await fetch(
+  `/v1beta1/organizations/${orgId}/billing/${billingId}/usages`,
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      amount: totalCredits,
+      source: 'ml_inference',
+      description: `GPT-4 inference - ${requestCount} requests`,
+      user_id: userId,
+      metadata: {
+        model: 'gpt-4',
+        requests: requestCount.toString(),
+        tokens_used: '5000'
+      }
+    })
+  }
+);
+
+if (!response.ok) {
+  if (response.status === 402) {
+    // Insufficient credits - prompt user to purchase more
+    showPurchaseCreditsModal();
+  }
+}
+```
+
+## Checking Balance
+
+Retrieve the current credit balance for a customer:
+
+<CodeGroup>
+```bash cURL
+curl -X GET 'https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/balance' \
+  -H 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "balance": {
+    "amount": 280,
+    "currency": "credits",
+    "updated_at": "2024-03-01T10:30:00Z"
+  }
+}
+```
+</CodeGroup>
+
+The balance represents the total credits available for consumption.
+
+## Transaction History
+
+List all credit transactions for a customer:
+
+<CodeGroup>
+```bash cURL
+curl -X GET 'https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/transactions?start_time=2024-03-01T00:00:00Z' \
+  -H 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "transactions": [
+    {
+      "id": "tx_123",
+      "customer_id": "cus_123",
+      "amount": 100,
+      "type": "credit",
+      "source": "system.buy",
+      "description": "Purchased support credits",
+      "user_id": "user_123",
+      "created_at": "2024-03-01T08:00:00Z"
+    },
+    {
+      "id": "tx_124",
+      "customer_id": "cus_123",
+      "amount": 20,
+      "type": "debit",
+      "source": "api_calls",
+      "description": "ML model inference - 100 requests",
+      "user_id": "user_123",
+      "created_at": "2024-03-01T10:30:00Z"
+    }
+  ]
+}
+```
+</CodeGroup>
+
+**Query Parameters:**
+
+- `start_time`: Filter transactions from this time (ISO 8601)
+- `end_time`: Filter transactions until this time (ISO 8601)
+
+## Reverting Usage
+
+If usage was incorrectly reported or a service failed, you can revert the usage and restore credits.
+
+### Full Revert
+
+Revert the entire usage amount:
+
+<CodeGroup>
+```bash cURL
+curl -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/usages/{usage_id}/revert' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <token>' \
+  -d '{}'
+```
+
+```json Response
+{
+  "transaction": {
+    "id": "tx_125",
+    "customer_id": "cus_123",
+    "amount": 20,
+    "type": "credit",
+    "source": "system.revert",
+    "description": "Reverted: ML model inference - 100 requests",
+    "created_at": "2024-03-01T10:45:00Z"
+  }
+}
+```
+</CodeGroup>
+
+### Partial Revert
+
+Revert only a portion of the usage:
+
+```bash
+curl -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/usages/{usage_id}/revert' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <token>' \
+  -d '{
+    "amount": 10
+  }'
+```
+
+This reverts 10 credits out of the original usage amount.
+
+<Note>
+Reverted credits are added back to the customer's account with source `system.revert`. Each revert creates a new credit transaction.
+</Note>
+
+### Revert Use Cases
+
+- **Service Failures**: ML model fails to complete, API request times out
+- **Incorrect Billing**: Usage was reported with wrong amount
+- **Customer Satisfaction**: Goodwill credit restoration for issues
+- **Testing**: Revert test usage in development environments
+
+## Awarding Credits
+
+Platform administrators can award credits to customers for promotions, rewards, or compensation:
+
+```bash
+curl -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/credits' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <admin_token>' \
+  -d '{
+    "amount": 50,
+    "source": "system.awarded",
+    "description": "Promotional credits for new customer",
+    "metadata": {
+      "promotion": "LAUNCH2024"
+    }
+  }'
+```
+
+## Onboarding Credits
+
+Automatically award credits when customers are created or subscribe to plans:
+
+### Customer Onboarding Credits
+
+```yaml
+billing:
+  customer:
+    onboard_credits_with_org: 100
+```
+
+Every new organization receives 100 credits automatically.
+
+### Plan Starter Credits
+
+```yaml
+plans:
+  - name: starter_monthly
+    on_start_credits: 50
+    products:
+      - name: starter_access
+```
+
+Customers receive 50 credits when they subscribe to this plan.
+
+<Note>
+Onboarding credits have source `system.starter` and are awarded automatically by the system.
+</Note>
+
+## Credit Balance Calculation
+
+The balance is calculated as:
+
+```
+Balance = Sum(Credit Transactions) - Sum(Debit Transactions)
+```
+
+**Example:**
+
+| Transaction | Type | Amount | Balance |
+|-------------|------|--------|---------|
+| Initial | - | - | 0 |
+| Purchase credits | Credit | +100 | 100 |
+| Onboarding award | Credit | +50 | 150 |
+| API usage | Debit | -20 | 130 |
+| ML inference | Debit | -30 | 100 |
+| Service failure revert | Credit | +30 | 130 |
+
+## Monitoring Credit Usage
+
+### Low Balance Alerts
+
+Implement proactive notifications when customers are running low on credits:
+
+```javascript
+const balance = await getBalance(customerId);
+const threshold = 50; // Warn when below 50 credits
+
+if (balance.amount < threshold) {
+  await sendEmail(customer.email, {
+    subject: 'Low Credit Balance',
+    body: `You have ${balance.amount} credits remaining. Purchase more to continue using the service.`
+  });
+}
+```
+
+### Usage Analytics
+
+Track credit consumption patterns:
+
+```sql
+SELECT 
+  source,
+  SUM(amount) as total_credits,
+  COUNT(*) as usage_count,
+  AVG(amount) as avg_per_usage
+FROM transactions
+WHERE 
+  customer_id = 'cus_123'
+  AND type = 'debit'
+  AND created_at >= NOW() - INTERVAL '30 days'
+GROUP BY source;
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Check Balance Before Usage">
+    Always verify sufficient credits exist before allowing operations to prevent failures.
+  </Step>
+  
+  <Step title="Implement Graceful Degradation">
+    When credits are insufficient, guide users to purchase more rather than hard-failing.
+  </Step>
+  
+  <Step title="Set Appropriate Credit Amounts">
+    Price credit packages at amounts that align with typical usage patterns.
+  </Step>
+  
+  <Step title="Provide Usage Visibility">
+    Show customers their credit balance and recent transactions in your UI.
+  </Step>
+  
+  <Step title="Enable Alerts">
+    Notify customers proactively when balance is low to prevent service interruptions.
+  </Step>
+  
+  <Step title="Use Descriptive Sources">
+    Set meaningful source values to help customers understand where credits are consumed.
+  </Step>
+  
+  <Step title="Leverage Metadata">
+    Store additional context in metadata for detailed usage analytics and debugging.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Insufficient Credits Error
+
+Customer attempted to use more credits than available:
+
+**Solution:**
+- Check balance before reporting usage
+- Guide customer to purchase more credits
+- Consider enabling overdraft (if supported)
+
+### Balance Not Updating
+
+Credit transactions not reflecting in balance:
+
+**Solution:**
+- Verify transaction was successfully created (check response)
+- Ensure double-entry transactions completed
+- Check for database synchronization issues
+
+### Credits Not Awarded After Purchase
+
+Customer completed payment but credits not added:
+
+**Solution:**
+- Verify product has `credits` behavior configured
+- Check `credit_amount` is set in product config
+- Ensure webhook events from Stripe are being processed
+- Review transaction logs for errors
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Products and Plans" icon="box" href="/billing/products-and-plans">
+    Create credit products with proper behavior configuration
+  </Card>
+  
+  <Card title="Subscriptions" icon="repeat" href="/billing/subscriptions">
+    Award starter credits with subscriptions
+  </Card>
+  
+  <Card title="Customers" icon="users" href="/billing/customers">
+    Configure onboarding credits for new customers
+  </Card>
+  
+  <Card title="Entitlements" icon="shield-check" href="/billing/entitlements">
+    Combine credits with feature access control
+  </Card>
+</CardGroup>

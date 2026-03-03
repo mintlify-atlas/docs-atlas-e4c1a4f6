@@ -1,0 +1,568 @@
+---
+title: User Authentication
+description: Authenticate human users with social login, email OTP, magic links, and passkeys
+---
+
+# User Authentication
+
+User authentication in Frontier is designed for human users accessing your application through a web browser or mobile app. Frontier provides multiple authentication strategies that you can enable and configure based on your application's needs.
+
+## Supported Authentication Strategies
+
+Frontier supports the following user authentication strategies:
+
+1. **Social Login (OIDC)** - Google, GitHub, Facebook, and other OIDC providers
+2. **Email OTP** - One-time password sent via email
+3. **Magic Links** - Passwordless login via email link
+4. **Passkeys** - WebAuthn-based biometric and hardware key authentication
+
+## Listing Available Strategies
+
+Before presenting login options to users, query Frontier to get the list of enabled authentication strategies:
+
+<CodeGroup>
+
+```bash cURL
+curl --location 'http://localhost:7400/v1beta1/auth' \
+  --header 'Accept: application/json'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:7400/v1beta1/auth', {
+  method: 'GET',
+  headers: {
+    'Accept': 'application/json'
+  }
+});
+
+const strategies = await response.json();
+console.log(strategies);
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'http://localhost:7400/v1beta1/auth',
+    headers={'Accept': 'application/json'}
+)
+
+strategies = response.json()
+print(strategies)
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "methods": [
+    "google",
+    "github",
+    "mailotp",
+    "maillink",
+    "passkey"
+  ]
+}
+```
+
+## Social Login (OIDC)
+
+Social login allows users to authenticate using their existing accounts from providers like Google, GitHub, or Facebook.
+
+### Configuration
+
+Configure OIDC providers in your `config.yaml`:
+
+```yaml
+app:
+  authentication:
+    callback_urls:
+      - "https://frontier.example.com/v1beta1/auth/callback"
+    oidc_config:
+      google:
+        client_id: "xxxxx.apps.googleusercontent.com"
+        client_secret: "xxxxx"
+        issuer_url: "https://accounts.google.com"
+        validity: "10m"
+      github:
+        client_id: "xxxxx"
+        client_secret: "xxxxx"
+        issuer_url: "https://github.com"
+        validity: "10m"
+```
+
+### Setting Up Google OIDC
+
+<Steps>
+
+### Create a Google Cloud Project
+
+Visit the [Google Cloud Console](https://console.developers.google.com/) and create a new project.
+
+### Create OAuth 2.0 Credentials
+
+1. Navigate to **Credentials** in the sidebar
+2. Click **Create credentials** → **OAuth client ID**
+3. Select **Web application** as the application type
+4. Add your callback URL to **Authorized redirect URIs**:
+   ```
+   https://frontier.example.com/v1beta1/auth/callback
+   ```
+
+### Copy Credentials
+
+Copy the **Client ID** and **Client Secret** to your Frontier configuration.
+
+### Update Configuration
+
+Add the Google OIDC configuration to your `config.yaml` as shown above.
+
+</Steps>
+
+### Authentication Flow
+
+<Steps>
+
+### Start Authentication
+
+Request the authentication URL from Frontier:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/auth/register/google?callback_url=https://frontier.example.com/v1beta1/auth/callback&return_to=https://app.example.com/dashboard' \
+  --header 'Accept: application/json'
+```
+
+**Response:**
+
+```json
+{
+  "endpoint": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&redirect_uri=...",
+  "state": "flow-uuid-here"
+}
+```
+
+### Redirect User
+
+Redirect the user to the `endpoint` URL. This takes them to Google's login page.
+
+### User Authenticates
+
+User enters their Google credentials and approves access.
+
+### Handle Callback
+
+Google redirects back to your callback URL with a `code` and `state`:
+
+```
+https://frontier.example.com/v1beta1/auth/callback?code=AUTH_CODE&state=FLOW_STATE
+```
+
+Frontier automatically processes this callback, verifies the code, and creates/retrieves the user.
+
+### Session Created
+
+Frontier creates an encrypted session cookie and redirects to your `return_to` URL:
+
+```
+Set-Cookie: frontier-session=encrypted-session-data; HttpOnly; Secure; SameSite=Lax
+Location: https://app.example.com/dashboard
+```
+
+### Access Granted
+
+User is now authenticated! All subsequent requests include the session cookie.
+
+</Steps>
+
+### Complete Example
+
+<Tabs>
+  <Tab title="Frontend (React)">
+    ```jsx
+    import { useState, useEffect } from 'react';
+
+    function LoginPage() {
+      const [strategies, setStrategies] = useState([]);
+
+      useEffect(() => {
+        // Fetch available strategies
+        fetch('http://localhost:7400/v1beta1/auth')
+          .then(res => res.json())
+          .then(data => setStrategies(data.methods));
+      }, []);
+
+      const handleGoogleLogin = async () => {
+        const callbackUrl = 'https://frontier.example.com/v1beta1/auth/callback';
+        const returnTo = 'https://app.example.com/dashboard';
+        
+        const response = await fetch(
+          `http://localhost:7400/v1beta1/auth/register/google?callback_url=${callbackUrl}&return_to=${returnTo}`
+        );
+        
+        const data = await response.json();
+        
+        // Redirect to Google login
+        window.location.href = data.endpoint;
+      };
+
+      return (
+        <div>
+          <h1>Sign In</h1>
+          {strategies.includes('google') && (
+            <button onClick={handleGoogleLogin}>
+              Sign in with Google
+            </button>
+          )}
+        </div>
+      );
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Backend (Go)">
+    ```go
+    package main
+
+    import (
+        "context"
+        "fmt"
+        "net/http"
+        
+        frontierv1beta1 "github.com/raystack/frontier/proto/v1beta1"
+    )
+
+    func handleLogin(w http.ResponseWriter, r *http.Request) {
+        client := frontierv1beta1.NewFrontierServiceClient(conn)
+        
+        resp, err := client.Authenticate(context.Background(), &frontierv1beta1.AuthenticateRequest{
+            StrategyName: "google",
+            CallbackUrl:  "https://frontier.example.com/v1beta1/auth/callback",
+            ReturnTo:     "https://app.example.com/dashboard",
+        })
+        
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+        
+        // Redirect to authentication endpoint
+        http.Redirect(w, r, resp.GetEndpoint(), http.StatusFound)
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Email One-Time Password (OTP)
+
+Email OTP provides passwordless authentication by sending a one-time code to the user's email.
+
+### Configuration
+
+```yaml
+app:
+  authentication:
+    mail_otp:
+      subject: "Your Login Code"
+      body: "Your one-time password is: <h2>{{.Otp}}</h2><br>This code expires in 10 minutes."
+      validity: "10m"
+      
+  mailer:
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    smtp_username: "noreply@example.com"
+    smtp_password: "xxxxx"
+    headers:
+      from: "noreply@example.com"
+```
+
+### Authentication Flow
+
+<Steps>
+
+### Request OTP
+
+Send a request with the user's email:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/auth/register/mailotp?email=user@example.com' \
+  --header 'Accept: application/json'
+```
+
+**Response:**
+
+```json
+{
+  "state": "flow-uuid-here"
+}
+```
+
+### User Receives Email
+
+Frontier sends an email with the OTP code to the user.
+
+### Submit OTP
+
+User enters the OTP code in your application, which submits it to Frontier:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/auth/callback?code=123456&state=flow-uuid-here' \
+  --header 'Accept: application/json'
+```
+
+### Verification
+
+Frontier verifies the OTP code. If valid, creates/retrieves the user and establishes a session.
+
+**Response:**
+
+```
+Set-Cookie: frontier-session=encrypted-session-data; HttpOnly; Secure
+```
+
+</Steps>
+
+### Security Features
+
+- **Rate Limiting** - Maximum 3 OTP verification attempts per flow
+- **Time Expiration** - OTP expires after 10 minutes (configurable)
+- **Constant-Time Comparison** - Prevents timing attacks
+- **Flow Consumption** - OTP can only be used once
+
+### Example Implementation
+
+<Tabs>
+  <Tab title="Frontend">
+    ```jsx
+    function EmailOTPLogin() {
+      const [email, setEmail] = useState('');
+      const [otp, setOtp] = useState('');
+      const [state, setState] = useState(null);
+      const [step, setStep] = useState('email');
+
+      const handleSendOTP = async () => {
+        const response = await fetch(
+          `http://localhost:7400/v1beta1/auth/register/mailotp?email=${email}`
+        );
+        const data = await response.json();
+        setState(data.state);
+        setStep('otp');
+      };
+
+      const handleVerifyOTP = async () => {
+        const response = await fetch(
+          `http://localhost:7400/v1beta1/auth/callback?code=${otp}&state=${state}`
+        );
+        
+        if (response.ok) {
+          // Session cookie set automatically
+          window.location.href = '/dashboard';
+        }
+      };
+
+      return (
+        <div>
+          {step === 'email' && (
+            <div>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+              />
+              <button onClick={handleSendOTP}>Send Code</button>
+            </div>
+          )}
+          
+          {step === 'otp' && (
+            <div>
+              <input
+                type="text"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                placeholder="Enter 6-digit code"
+              />
+              <button onClick={handleVerifyOTP}>Verify</button>
+            </div>
+          )}
+        </div>
+      );
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Magic Links
+
+Magic links provide one-click authentication via email.
+
+### Configuration
+
+```yaml
+app:
+  authentication:
+    mail_link:
+      subject: "Sign in to Your Account"
+      body: "Click the link below to sign in:<br><a href='{{.Link}}'>Sign In</a><br>This link expires in 10 minutes."
+      validity: "10m"
+```
+
+### Authentication Flow
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/auth/register/maillink?email=user@example.com&callback_url=https://frontier.example.com/v1beta1/auth/callback' \
+  --header 'Accept: application/json'
+```
+
+Frontier sends an email with a unique link. When clicked, the user is automatically authenticated.
+
+## Passkey Authentication
+
+Passkeys provide modern, phishing-resistant authentication using WebAuthn.
+
+### Features
+
+- Biometric authentication (fingerprint, face recognition)
+- Hardware security keys (YubiKey, etc.)
+- Platform authenticators (Touch ID, Windows Hello)
+- No passwords to remember
+
+### Flow
+
+<Steps>
+
+### Start Registration
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/auth/register/passkey?email=user@example.com' \
+  --header 'Accept: application/json'
+```
+
+### Create Credential
+
+Browser prompts user to create a passkey using their biometric or security key.
+
+### Complete Registration
+
+Submit the credential data back to Frontier to complete registration.
+
+### Future Logins
+
+User can authenticate with just their biometric/security key.
+
+</Steps>
+
+## Request Verification
+
+After successful authentication, you can verify requests in two ways:
+
+### 1. Session Cookie (Recommended)
+
+The session cookie is automatically included in requests:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/users/self' \
+  --header 'Cookie: frontier-session=encrypted-data'
+```
+
+### 2. Access Token
+
+Request an access token after authentication:
+
+```bash
+curl --location --request POST 'http://localhost:7400/v1beta1/auth/token' \
+  --header 'Cookie: frontier-session=encrypted-data'
+```
+
+**Response:**
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjE2ODAyMzgyNDQyOTQiLCJ0eXAiOiJKV1QifQ...",
+  "token_type": "Bearer"
+}
+```
+
+Use the access token in subsequent requests:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/users/self' \
+  --header 'Authorization: Bearer eyJhbGci...'
+```
+
+## Logout
+
+To end a user's session:
+
+```bash
+curl --location --request POST 'http://localhost:7400/v1beta1/auth/logout' \
+  --header 'Cookie: frontier-session=encrypted-data'
+```
+
+## Multi-Organization Support
+
+Frontier is multi-tenant aware. Each organization can have different authentication requirements:
+
+```yaml
+# Organization-level settings (via API)
+{
+  "org_id": "org-123",
+  "allowed_strategies": ["google", "mailotp"],
+  "require_2fa": true
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use HTTPS in Production">
+    Always use HTTPS in production to protect session cookies and tokens.
+    
+    ```yaml
+    app:
+      authentication:
+        session:
+          secure: true
+          same_site: "strict"
+    ```
+  </Accordion>
+
+  <Accordion title="Implement CSRF Protection">
+    Frontier includes CSRF protection. Ensure your frontend handles CSRF tokens properly.
+  </Accordion>
+
+  <Accordion title="Whitelist Callback URLs">
+    Only allow trusted callback URLs to prevent open redirect vulnerabilities.
+    
+    ```yaml
+    authentication:
+      callback_urls:
+        - "https://app.example.com/auth/callback"
+    ```
+  </Accordion>
+
+  <Accordion title="Set Appropriate Token Validity">
+    Use short-lived access tokens and longer-lived refresh tokens.
+    
+    ```yaml
+    authentication:
+      token:
+        validity: "1h"  # Short-lived access tokens
+      session:
+        validity: "168h"  # 7-day sessions
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Sessions" icon="clock" href="/authentication/sessions">
+    Learn about session management and lifecycle
+  </Card>
+  
+  <Card title="Service Users" icon="robot" href="/authentication/service-users">
+    Authenticate machine users and services
+  </Card>
+</CardGroup>

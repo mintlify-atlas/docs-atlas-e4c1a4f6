@@ -1,0 +1,136 @@
+---
+title: 'Delete Policy'
+description: 'Delete a policy by ID'
+---
+
+## DELETE /v1beta1/policies/{id}
+
+Permanently delete a policy. This removes the role assignment from the principal on the specified resource.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Unique identifier (UUID) of the policy to delete.
+</ParamField>
+
+### Response
+
+Returns an empty response with HTTP 200 status code on successful deletion.
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE 'https://api.frontier.example.com/v1beta1/policies/550e8400-e29b-41d4-a716-446655440000' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN'
+```
+
+```javascript JavaScript
+const policyId = '550e8400-e29b-41d4-a716-446655440000';
+
+const response = await fetch(`https://api.frontier.example.com/v1beta1/policies/${policyId}`, {
+  method: 'DELETE',
+  headers: {
+    'Authorization': 'Bearer YOUR_ACCESS_TOKEN'
+  }
+});
+
+if (response.ok) {
+  console.log('Policy deleted successfully');
+}
+```
+
+```python Python
+import requests
+
+policy_id = '550e8400-e29b-41d4-a716-446655440000'
+
+response = requests.delete(
+    f'https://api.frontier.example.com/v1beta1/policies/{policy_id}',
+    headers={
+        'Authorization': 'Bearer YOUR_ACCESS_TOKEN'
+    }
+)
+
+if response.status_code == 200:
+    print('Policy deleted successfully')
+```
+
+```go Go
+import (
+    "fmt"
+    "net/http"
+)
+
+policyID := "550e8400-e29b-41d4-a716-446655440000"
+
+req, _ := http.NewRequest("DELETE", fmt.Sprintf("https://api.frontier.example.com/v1beta1/policies/%s", policyID), nil)
+req.Header.Add("Authorization", "Bearer YOUR_ACCESS_TOKEN")
+
+client := &http.Client{}
+resp, err := client.Do(req)
+if err != nil {
+    panic(err)
+}
+defer resp.Body.Close()
+
+if resp.StatusCode == 200 {
+    fmt.Println("Policy deleted successfully")
+}
+```
+
+</CodeGroup>
+
+### Response Example
+
+```json
+{}
+```
+
+### Error Responses
+
+<ResponseField name="error" type="object">
+  <ResponseField name="code" type="string">
+    Error code. Possible values:
+    - `not_found` - Policy not found (invalid ID or policy doesn't exist)
+    - `invalid_argument` - Invalid request parameters or policy details
+    - `already_exists` - Conflict error (policy cannot be deleted due to constraints)
+    - `internal` - Internal server error
+  </ResponseField>
+  
+  <ResponseField name="message" type="string">
+    Human-readable error message.
+  </ResponseField>
+</ResponseField>
+
+### Error Examples
+
+```json
+{
+  "error": {
+    "code": "not_found",
+    "message": "policy not found"
+  }
+}
+```
+
+```json
+{
+  "error": {
+    "code": "already_exists",
+    "message": "conflict: policy cannot be deleted"
+  }
+}
+```
+
+## Notes
+
+- The policy ID must be a valid UUID
+- Deleting a policy is permanent and cannot be undone
+- Deleting a policy removes the role assignment from the principal on the resource
+- An audit event (`policy.deleted`) is generated when a policy is successfully deleted
+- Returns a 404 error if the policy doesn't exist or the ID is invalid
+- Returns a conflict error if the policy cannot be deleted due to system constraints
+
+<Warning>
+  Deleting a policy immediately revokes the associated permissions. Ensure you understand the impact before deleting a policy.
+</Warning>

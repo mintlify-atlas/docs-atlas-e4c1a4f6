@@ -1,0 +1,764 @@
+---
+title: Service User Authentication
+description: Authenticate machine users and services with Client ID/Secret and RSA JWT authentication
+---
+
+# Service User Authentication
+
+Service user authentication is designed for machine-to-machine communication where a human is not actively involved. Service users represent applications, backend services, scheduled jobs, or external systems that need to authenticate to access Frontier APIs.
+
+## Overview
+
+Before authenticating a service user, you must first create the service user within an organization. Once created, you can generate credentials using one of two methods:
+
+1. **Client ID/Secret** - Traditional OAuth 2.0 client credentials
+2. **Private/Public Key JWT** - Asymmetric key-based authentication
+
+A service user can have multiple credentials, and all credentials remain valid for authentication.
+
+## Creating a Service User
+
+First, create a service user in an organization:
+
+```bash
+curl --location --request POST 'http://localhost:7400/v1beta1/organizations/{org_id}/serviceusers' \
+  --header 'Content-Type: application/json' \
+  --header 'Authorization: Bearer <token>' \
+  --data-raw '{
+    "title": "Backend API Service",
+    "metadata": {
+      "description": "Service user for backend API access"
+    }
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "serviceuser": {
+    "id": "su_1234567890",
+    "title": "Backend API Service",
+    "org_id": "org_123",
+    "state": "enabled",
+    "created_at": "2024-01-15T10:00:00Z",
+    "updated_at": "2024-01-15T10:00:00Z"
+  }
+}
+```
+
+## Authentication Method 1: Client ID/Secret
+
+Client credentials grant is the traditional OAuth 2.0 flow for service-to-service authentication.
+
+### Generating Client Credentials
+
+Create a client secret for the service user:
+
+```bash
+curl --location --request POST 'http://localhost:7400/v1beta1/serviceusers/{service_user_id}/secrets' \
+  --header 'Content-Type: application/json' \
+  --header 'Authorization: Bearer <token>' \
+  --data-raw '{
+    "title": "Production API Key"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "secret": {
+    "id": "sec_abcdefgh12345678",
+    "secret": "frs_secret_XyZ123...ABC789"
+  }
+}
+```
+
+<Warning>
+  The `secret` field is only returned once and is never stored in plain text. Save it securely - you cannot retrieve it again. If lost, you must generate a new secret.
+</Warning>
+
+### Obtaining an Access Token
+
+<Steps>
+
+### Encode Credentials
+
+Encode the client ID and secret using Base64:
+
+```bash
+echo -n 'sec_abcdefgh12345678:frs_secret_XyZ123...ABC789' | base64
+```
+
+Result: `c2VjX2FiY2RlZmdoMTIzNDU2Nzg6ZnJzX3NlY3JldF9YeVoxMjMuLi5BQkM3ODk=`
+
+### Request Access Token
+
+Exchange credentials for an access token:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/auth/token' \
+  --header 'Accept: application/json' \
+  --header 'Authorization: Basic c2VjX2FiY2RlZmdoMTIzNDU2Nzg6ZnJzX3NlY3JldF9YeVoxMjMuLi5BQkM3ODk=' \
+  --data-urlencode 'grant_type=client_credentials'
+```
+
+**Response:**
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjE2ODAyMzgyNDQyOTQiLCJ0eXAiOiJKV1QifQ.eyJleHAiOjE2OTA4NzI0NjcsImdlbiI6InN5c3RlbSIsImlhdCI6MTY4ODI4MDQ2NywiaXNzIjoiaHR0cDovL2xvY2FsaG9zdC5mcm9udGllciIsImp0aSI6IjRmMmI1Y2UxLTQwYWMtNDhlYy05MzQ4LTE3ZGE4MzU2NmY1NiIsImtpZCI6IjE2ODAyMzgyNDQyOTQiLCJuYmYiOjE2ODgyODA0NjcsInN1YiI6InN1XzEyMzQ1Njc4OTAifQ...",
+  "token_type": "Bearer",
+  "expires_in": 3600
+}
+```
+
+### Use Access Token
+
+Use the access token in API requests:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/users/self' \
+  --header 'Accept: application/json' \
+  --header 'Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjE2ODAyMzgyNDQyOTQi...'
+```
+
+</Steps>
+
+### Code Examples
+
+<Tabs>
+  <Tab title="Node.js">
+    ```javascript
+    const axios = require('axios');
+
+    const clientId = 'sec_abcdefgh12345678';
+    const clientSecret = 'frs_secret_XyZ123...ABC789';
+    const frontierUrl = 'http://localhost:7400';
+
+    // Encode credentials
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+    // Request access token
+    async function getAccessToken() {
+      const response = await axios.post(
+        `${frontierUrl}/v1beta1/auth/token`,
+        'grant_type=client_credentials',
+        {
+          headers: {
+            'Authorization': `Basic ${credentials}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        }
+      );
+      
+      return response.data.access_token;
+    }
+
+    // Use access token
+    async function makeApiCall() {
+      const token = await getAccessToken();
+      
+      const response = await axios.get(
+        `${frontierUrl}/v1beta1/users/self`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      
+      console.log(response.data);
+    }
+
+    makeApiCall();
+    ```
+  </Tab>
+  
+  <Tab title="Python">
+    ```python
+    import requests
+    import base64
+
+    client_id = 'sec_abcdefgh12345678'
+    client_secret = 'frs_secret_XyZ123...ABC789'
+    frontier_url = 'http://localhost:7400'
+
+    # Encode credentials
+    credentials = base64.b64encode(
+        f'{client_id}:{client_secret}'.encode()
+    ).decode()
+
+    # Request access token
+    def get_access_token():
+        response = requests.post(
+            f'{frontier_url}/v1beta1/auth/token',
+            headers={
+                'Authorization': f'Basic {credentials}',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            data={'grant_type': 'client_credentials'}
+        )
+        return response.json()['access_token']
+
+    # Use access token
+    def make_api_call():
+        token = get_access_token()
+        
+        response = requests.get(
+            f'{frontier_url}/v1beta1/users/self',
+            headers={'Authorization': f'Bearer {token}'}
+        )
+        
+        print(response.json())
+
+    make_api_call()
+    ```
+  </Tab>
+  
+  <Tab title="Go">
+    ```go
+    package main
+
+    import (
+        "context"
+        "encoding/base64"
+        "fmt"
+        "net/http"
+        "net/url"
+        "strings"
+    )
+
+    const (
+        clientID     = "sec_abcdefgh12345678"
+        clientSecret = "frs_secret_XyZ123...ABC789"
+        frontierURL  = "http://localhost:7400"
+    )
+
+    type TokenResponse struct {
+        AccessToken string `json:"access_token"`
+        TokenType   string `json:"token_type"`
+        ExpiresIn   int    `json:"expires_in"`
+    }
+
+    func getAccessToken() (string, error) {
+        // Encode credentials
+        credentials := base64.StdEncoding.EncodeToString(
+            []byte(clientID + ":" + clientSecret),
+        )
+
+        // Request access token
+        data := url.Values{}
+        data.Set("grant_type", "client_credentials")
+
+        req, _ := http.NewRequest(
+            "POST",
+            frontierURL+"/v1beta1/auth/token",
+            strings.NewReader(data.Encode()),
+        )
+        req.Header.Set("Authorization", "Basic "+credentials)
+        req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+        client := &http.Client{}
+        resp, err := client.Do(req)
+        if err != nil {
+            return "", err
+        }
+        defer resp.Body.Close()
+
+        var tokenResp TokenResponse
+        json.NewDecoder(resp.Body).Decode(&tokenResp)
+        
+        return tokenResp.AccessToken, nil
+    }
+
+    func main() {
+        token, err := getAccessToken()
+        if err != nil {
+            panic(err)
+        }
+        
+        fmt.Println("Access Token:", token)
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Authentication Method 2: Private/Public Key JWT
+
+JWT bearer grant uses asymmetric cryptography for enhanced security. The service user holds a private key and uses it to sign JWTs, while Frontier stores only the public key.
+
+### Advantages
+
+- No secrets to store or transmit
+- Private key never leaves your infrastructure
+- Support for key rotation
+- Higher security for distributed systems
+
+### Generating Key Credentials
+
+Create a public/private key pair for the service user:
+
+```bash
+curl --location --request POST 'http://localhost:7400/v1beta1/serviceusers/{service_user_id}/keys' \
+  --header 'Content-Type: application/json' \
+  --header 'Authorization: Bearer <token>' \
+  --data-raw '{
+    "title": "Production RSA Key"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "key": {
+    "type": "rsa",
+    "kid": "key_c029a17d-0bad-472c-b335-ed58ba370d84",
+    "principal_id": "su_1234567890",
+    "private_key": "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF1f...\n-----END RSA PRIVATE KEY-----"
+  }
+}
+```
+
+<Warning>
+  The `private_key` is only returned once. Save it securely in PEM format. If lost, you must generate a new key pair.
+</Warning>
+
+### Retrieving Public Key
+
+You can retrieve the public key at any time:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/serviceusers/{service_user_id}/keys/{kid}' \
+  --header 'Authorization: Bearer <token>'
+```
+
+### Generating and Using JWT
+
+<Steps>
+
+### Create JWT with Private Key
+
+Generate a JWT signed with your private key:
+
+```javascript
+const jwt = require('jsonwebtoken');
+const fs = require('fs');
+
+const privateKey = fs.readFileSync('private-key.pem');
+const kid = 'key_c029a17d-0bad-472c-b335-ed58ba370d84';
+const principalId = 'su_1234567890';
+
+const token = jwt.sign(
+  {
+    sub: principalId,
+    iss: 'frontier-go-sdk',
+    aud: 'http://localhost:7400',
+  },
+  privateKey,
+  {
+    algorithm: 'RS256',
+    keyid: kid,
+    expiresIn: '12h'
+  }
+);
+
+console.log(token);
+```
+
+### Exchange JWT for Access Token
+
+Exchange the signed JWT for a Frontier access token:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/auth/token' \
+  --header 'Accept: application/json' \
+  --header 'Authorization: Bearer <signed-jwt-token>' \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer'
+```
+
+**Response:**
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjE2ODAyMzgyNDQyOTQiLCJ0eXAiOiJKV1QifQ...",
+  "token_type": "Bearer",
+  "expires_in": 3600
+}
+```
+
+### Use Access Token
+
+Use the access token for API requests:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/organizations' \
+  --header 'Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjE2ODAyMzgyNDQyOTQi...'
+```
+
+</Steps>
+
+### Complete Implementation Example
+
+<Tabs>
+  <Tab title="Go (Frontier SDK)">
+    ```go
+    package main
+
+    import (
+        "context"
+        "fmt"
+        "time"
+        
+        "github.com/lestrrat-go/jwx/v2/jwk"
+        "github.com/raystack/frontier/pkg/utils"
+        frontierv1beta1 "github.com/raystack/frontier/proto/v1beta1"
+    )
+
+    // Generate JWT token from key credential
+    func GetServiceUserTokenGenerator(credential *frontierv1beta1.KeyCredential) (func() ([]byte, error), error) {
+        // Parse private key
+        rsaKey, err := jwk.ParseKey([]byte(credential.GetPrivateKey()), jwk.WithPEM(true))
+        if err != nil {
+            return nil, err
+        }
+        
+        // Set key ID
+        if err = rsaKey.Set(jwk.KeyIDKey, credential.GetKid()); err != nil {
+            return nil, err
+        }
+        
+        // Return token generator function
+        return func() ([]byte, error) {
+            return utils.BuildToken(
+                rsaKey,
+                "//frontier-go-sdk",
+                credential.GetPrincipalId(),
+                time.Hour*12,
+                nil,
+            )
+        }, nil
+    }
+
+    func main() {
+        // Your key credential from Frontier
+        credential := &frontierv1beta1.KeyCredential{
+            Kid:         "key_c029a17d-0bad-472c-b335-ed58ba370d84",
+            PrincipalId: "su_1234567890",
+            PrivateKey:  "-----BEGIN RSA PRIVATE KEY-----\n...",
+        }
+        
+        // Generate token
+        tokenGen, err := GetServiceUserTokenGenerator(credential)
+        if err != nil {
+            panic(err)
+        }
+        
+        token, err := tokenGen()
+        if err != nil {
+            panic(err)
+        }
+        
+        fmt.Println("Generated JWT:", string(token))
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Node.js">
+    ```javascript
+    const jwt = require('jsonwebtoken');
+    const fs = require('fs');
+    const axios = require('axios');
+
+    class ServiceUserAuth {
+      constructor(privateKeyPath, kid, principalId, frontierUrl) {
+        this.privateKey = fs.readFileSync(privateKeyPath);
+        this.kid = kid;
+        this.principalId = principalId;
+        this.frontierUrl = frontierUrl;
+      }
+
+      // Generate signed JWT
+      generateJWT() {
+        return jwt.sign(
+          {
+            sub: this.principalId,
+            iss: 'my-application',
+            aud: this.frontierUrl,
+          },
+          this.privateKey,
+          {
+            algorithm: 'RS256',
+            keyid: this.kid,
+            expiresIn: '12h'
+          }
+        );
+      }
+
+      // Exchange JWT for access token
+      async getAccessToken() {
+        const signedJWT = this.generateJWT();
+        
+        const response = await axios.post(
+          `${this.frontierUrl}/v1beta1/auth/token`,
+          'grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer',
+          {
+            headers: {
+              'Authorization': `Bearer ${signedJWT}`,
+              'Content-Type': 'application/x-www-form-urlencoded'
+            }
+          }
+        );
+        
+        return response.data.access_token;
+      }
+
+      // Make authenticated API call
+      async makeRequest(endpoint) {
+        const token = await this.getAccessToken();
+        
+        const response = await axios.get(
+          `${this.frontierUrl}${endpoint}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+        
+        return response.data;
+      }
+    }
+
+    // Usage
+    const auth = new ServiceUserAuth(
+      './private-key.pem',
+      'key_c029a17d-0bad-472c-b335-ed58ba370d84',
+      'su_1234567890',
+      'http://localhost:7400'
+    );
+
+    auth.makeRequest('/v1beta1/organizations')
+      .then(data => console.log(data))
+      .catch(err => console.error(err));
+    ```
+  </Tab>
+</Tabs>
+
+### JWT Header Requirements
+
+Your JWT must include the `kid` (Key ID) in the header to identify which public key to use for verification:
+
+```json
+{
+  "alg": "RS256",
+  "kid": "key_c029a17d-0bad-472c-b335-ed58ba370d84",
+  "typ": "JWT"
+}
+```
+
+## Access Token Details
+
+Frontier access tokens are JWTs that contain claims about the service user:
+
+### Token Structure
+
+**Header:**
+```json
+{
+  "alg": "RS256",
+  "kid": "1680238244294",
+  "typ": "JWT"
+}
+```
+
+**Payload:**
+```json
+{
+  "sub": "su_1234567890",
+  "iss": "http://localhost.frontier",
+  "aud": "http://localhost.frontier",
+  "exp": 1690872467,
+  "iat": 1688280467,
+  "nbf": 1688280467,
+  "jti": "4f2b5ce1-40ac-48ec-9348-17da83566f56",
+  "gen": "system",
+  "org_id": "org_123",
+  "project_id": "proj_456"
+}
+```
+
+### Custom Claims
+
+- **org_id** - Organization IDs the service user belongs to
+- **project_id** - Project context if specified via `X-Project` header
+- **gen** - Generation type ("system" for service users)
+- **sub** - Service user ID
+
+### Token Validity
+
+By default, access tokens are valid for 1 hour. Configure this in your `config.yaml`:
+
+```yaml
+app:
+  authentication:
+    token:
+      validity: "1h"
+```
+
+## Managing Credentials
+
+### Listing Credentials
+
+List all secrets for a service user:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/serviceusers/{service_user_id}/secrets' \
+  --header 'Authorization: Bearer <token>'
+```
+
+### Deleting Credentials
+
+Revoke a credential:
+
+```bash
+curl --location --request DELETE 'http://localhost:7400/v1beta1/serviceusers/{service_user_id}/secrets/{secret_id}' \
+  --header 'Authorization: Bearer <token>'
+```
+
+### Key Rotation
+
+To rotate keys:
+
+<Steps>
+
+### Generate new credentials
+
+Create new client secret or key pair.
+
+### Update your services
+
+Deploy the new credentials to your services.
+
+### Verify functionality
+
+Ensure services can authenticate with new credentials.
+
+### Delete old credentials
+
+Once verified, delete the old credentials.
+
+</Steps>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use JWT Grant for Production">
+    JWT grant with RSA keys is more secure than client secrets for production environments:
+    - Private keys never leave your infrastructure
+    - No secrets in configuration files
+    - Support for hardware security modules (HSM)
+  </Accordion>
+
+  <Accordion title="Implement Token Caching">
+    Cache access tokens until they expire to reduce token requests:
+    
+    ```javascript
+    class TokenCache {
+      constructor(authClient) {
+        this.authClient = authClient;
+        this.token = null;
+        this.expiresAt = null;
+      }
+
+      async getToken() {
+        if (this.token && this.expiresAt > Date.now()) {
+          return this.token;
+        }
+        
+        const response = await this.authClient.getAccessToken();
+        this.token = response.access_token;
+        this.expiresAt = Date.now() + (response.expires_in * 1000);
+        
+        return this.token;
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Secure Credential Storage">
+    Store credentials securely:
+    - Use environment variables or secret management systems
+    - Never commit credentials to version control
+    - Encrypt private keys at rest
+    - Use restricted file permissions (chmod 600)
+  </Accordion>
+
+  <Accordion title="Scope Service User Permissions">
+    Grant service users only the permissions they need:
+    
+    ```bash
+    # Assign specific role to service user
+    curl --location --request POST 'http://localhost:7400/v1beta1/organizations/{org_id}/policies' \
+      --header 'Authorization: Bearer <token>' \
+      --data-raw '{
+        "principal_id": "su_1234567890",
+        "principal_type": "serviceuser",
+        "role_id": "read_only_role"
+      }'
+    ```
+  </Accordion>
+
+  <Accordion title="Monitor and Audit">
+    Track service user authentication and API usage:
+    - Enable audit logs
+    - Monitor failed authentication attempts
+    - Set up alerts for unusual activity
+    - Regularly review active credentials
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+### Invalid Client Credentials
+
+**Error:** `401 Unauthorized`
+
+**Solutions:**
+- Verify client ID and secret are correct
+- Ensure credentials are properly Base64 encoded
+- Check if credentials have been revoked
+- Verify service user is enabled
+
+### Invalid JWT Signature
+
+**Error:** `401 Unauthorized - Invalid JWT`
+
+**Solutions:**
+- Verify `kid` in JWT header matches the key ID in Frontier
+- Ensure private key matches the public key stored in Frontier
+- Check JWT is properly signed with RS256 algorithm
+- Verify JWT hasn't expired
+
+### Token Expired
+
+**Error:** `401 Unauthorized - Token expired`
+
+**Solutions:**
+- Request a new access token
+- Implement token refresh logic
+- Check system time synchronization
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="User Authentication" icon="user" href="/authentication/users">
+    Learn about authenticating human users
+  </Card>
+  
+  <Card title="Authorization" icon="shield" href="/authorization/overview">
+    Configure permissions and access control
+  </Card>
+</CardGroup>

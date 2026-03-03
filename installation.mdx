@@ -1,0 +1,403 @@
+---
+title: "Installation"
+description: "Install Frontier on macOS, Linux, Windows, Docker, or Kubernetes"
+---
+
+Frontier can be installed on macOS, Windows, Linux, and any platform that supports Docker or Kubernetes. Choose the installation method that best fits your environment.
+
+## Prerequisites
+
+Before installing Frontier, ensure you have:
+
+- **PostgreSQL 13 or above** - For storing Frontier data
+- **SpiceDB** - For authorization decisions ([Installation guide](https://authzed.com/docs/spicedb/installing))
+
+<Note>
+  You can run PostgreSQL and SpiceDB locally using Docker Compose. See the [Docker](#docker) section below.
+</Note>
+
+## Installation Methods
+
+<CardGroup cols={2}>
+  <Card title="macOS" icon="apple" href="#macos">
+    Install via Homebrew
+  </Card>
+  <Card title="Linux" icon="linux" href="#linux">
+    Install via package manager
+  </Card>
+  <Card title="Windows" icon="windows" href="#windows">
+    Install via Scoop
+  </Card>
+  <Card title="Docker" icon="docker" href="#docker">
+    Run with Docker
+  </Card>
+  <Card title="Kubernetes" icon="dharmachakra" href="#kubernetes-helm">
+    Deploy with Helm
+  </Card>
+  <Card title="Binary" icon="file-binary" href="#binary-cross-platform">
+    Download pre-compiled binary
+  </Card>
+</CardGroup>
+
+## macOS
+
+Frontier is available via Homebrew.
+
+<Steps>
+  <Step title="Install Frontier">
+    ```bash
+    brew install raystack/tap/frontier
+    ```
+  </Step>
+  
+  <Step title="Verify installation">
+    ```bash
+    frontier --help
+    ```
+  </Step>
+  
+  <Step title="Upgrade to latest version">
+    ```bash
+    brew upgrade frontier
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  You can also download binaries directly from the [releases page](https://github.com/raystack/frontier/releases/latest).
+</Tip>
+
+## Linux
+
+Frontier is available as downloadable `.deb` and `.rpm` packages.
+
+<CodeGroup>
+```bash Debian/Ubuntu
+# Download the .deb package
+wget https://github.com/raystack/frontier/releases/latest/download/frontier_linux_amd64.deb
+
+# Install with dpkg
+sudo dpkg -i frontier_linux_amd64.deb
+```
+
+```bash RedHat/CentOS
+# Download the .rpm package
+wget https://github.com/raystack/frontier/releases/latest/download/frontier_linux_amd64.rpm
+
+# Install with rpm
+sudo rpm -i frontier_linux_amd64.rpm
+```
+</CodeGroup>
+
+<Steps>
+  <Step title="Verify installation">
+    ```bash
+    frontier --help
+    ```
+  </Step>
+</Steps>
+
+## Windows
+
+Frontier is available via [Scoop](https://scoop.sh/).
+
+<Steps>
+  <Step title="Add Frontier bucket">
+    ```powershell
+    scoop bucket add frontier https://github.com/raystack/scoop-bucket.git
+    ```
+  </Step>
+  
+  <Step title="Install Frontier">
+    ```powershell
+    scoop install frontier
+    ```
+  </Step>
+  
+  <Step title="Verify installation">
+    ```powershell
+    frontier --help
+    ```
+  </Step>
+  
+  <Step title="Upgrade to latest version">
+    ```powershell
+    scoop update frontier
+    ```
+  </Step>
+</Steps>
+
+## Binary (Cross-platform)
+
+Download pre-compiled binaries for any platform from the releases page.
+
+<Steps>
+  <Step title="Download binary">
+    Visit the [releases page](https://github.com/raystack/frontier/releases) and download the appropriate version for your platform.
+  </Step>
+  
+  <Step title="Extract and install">
+    Extract the binary and move it to a location in your `PATH`. For Unix-like systems:
+    
+    ```bash
+    # Extract the archive
+    tar -xzf frontier_*.tar.gz
+    
+    # Move to /usr/local/bin
+    sudo mv frontier /usr/local/bin/
+    
+    # Make executable
+    sudo chmod +x /usr/local/bin/frontier
+    ```
+  </Step>
+  
+  <Step title="Verify installation">
+    ```bash
+    frontier --help
+    ```
+  </Step>
+</Steps>
+
+## Docker
+
+Run Frontier using Docker containers.
+
+### Pull Docker Image
+
+<CodeGroup>
+```bash Latest version
+docker pull raystack/frontier:latest
+```
+
+```bash Specific version
+docker pull raystack/frontier:v0.11.3
+```
+</CodeGroup>
+
+### Using Docker Compose
+
+The easiest way to run Frontier with all dependencies:
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/raystack/frontier.git
+    cd frontier
+    ```
+  </Step>
+  
+  <Step title="Start services with Docker Compose">
+    ```bash
+    docker-compose up
+    ```
+    
+    This starts PostgreSQL, SpiceDB, and Frontier with default configurations.
+  </Step>
+  
+  <Step title="Access Frontier">
+    Frontier will be available at `http://localhost:8080`
+  </Step>
+</Steps>
+
+### Run Docker Container Manually
+
+Run Frontier container with custom configuration:
+
+<CodeGroup>
+```bash With environment variables
+docker run -p 8080:8080 \
+  -e FRONTIER_DB_DRIVER=postgres \
+  -e FRONTIER_DB_URL=postgres://frontier:@localhost:5432/frontier?sslmode=disable \
+  -e FRONTIER_SPICEDB_HOST=spicedb.localhost:50051 \
+  -e FRONTIER_SPICEDB_PRE_SHARED_KEY=randomkey \
+  raystack/frontier:latest server start
+```
+
+```bash With config file
+docker run -p 8080:8080 \
+  -v $(pwd)/config.yaml:/config.yaml \
+  raystack/frontier:latest server start -c /config.yaml
+```
+</CodeGroup>
+
+<Warning>
+  Ensure PostgreSQL and SpiceDB are running and accessible before starting Frontier.
+</Warning>
+
+## Kubernetes (Helm)
+
+Deploy Frontier to Kubernetes using Helm charts.
+
+### Prerequisites
+
+- Kubernetes 1.14+
+- Helm 3.x [installed](https://helm.sh/docs/intro/install/)
+
+### Installation Steps
+
+<Steps>
+  <Step title="Add Raystack Helm repository">
+    ```bash
+    helm repo add raystack https://raystack.github.io/charts/
+    helm repo update
+    ```
+  </Step>
+  
+  <Step title="Create values file">
+    Create a `values.yaml` file with your configuration:
+    
+    ```yaml values.yaml
+    image:
+      tag: "latest"
+    
+    config:
+      db:
+        driver: postgres
+        url: postgres://frontier:@postgres:5432/frontier?sslmode=disable
+      spicedb:
+        host: spicedb
+        port: 50051
+        pre_shared_key: "your-secret-key"
+    
+    ingress:
+      enabled: true
+      hosts:
+        - frontier.example.com
+    ```
+    
+    See the [full values guide](https://github.com/raystack/charts/tree/main/stable/frontier#values) for all options.
+  </Step>
+  
+  <Step title="Install Frontier">
+    ```bash
+    helm install frontier raystack/frontier -f values.yaml
+    ```
+  </Step>
+  
+  <Step title="Verify deployment">
+    ```bash
+    kubectl get pods -l app=frontier
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  View the complete [Helm chart documentation](https://github.com/raystack/charts/tree/main/stable/frontier) for advanced configuration options.
+</Tip>
+
+## Building from Source
+
+Build Frontier from source code.
+
+### Prerequisites
+
+- Go 1.21 or later
+- Make
+- Git
+
+### Build Steps
+
+<Steps>
+  <Step title="Clone repository">
+    <CodeGroup>
+    ```bash SSH
+    git clone git@github.com:raystack/frontier.git
+    cd frontier
+    ```
+    
+    ```bash HTTPS
+    git clone https://github.com/raystack/frontier.git
+    cd frontier
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Build native executable">
+    ```bash
+    make
+    ```
+    
+    This creates the `frontier` binary in the root directory.
+  </Step>
+  
+  <Step title="Initialize configuration">
+    ```bash
+    ./frontier config init
+    ```
+    
+    Customize the generated `config.yaml` with your settings.
+  </Step>
+  
+  <Step title="Run migrations">
+    ```bash
+    ./frontier server migrate
+    ```
+  </Step>
+  
+  <Step title="Start server">
+    ```bash
+    ./frontier server start
+    ```
+  </Step>
+</Steps>
+
+### Build Docker Image
+
+<Steps>
+  <Step title="Build image">
+    ```bash
+    docker build . -t frontier:custom
+    ```
+  </Step>
+  
+  <Step title="Run container">
+    ```bash
+    docker run -p 8080:8080 frontier:custom server start
+    ```
+  </Step>
+</Steps>
+
+## Verify Installation
+
+After installing Frontier, verify it's working correctly:
+
+<Steps>
+  <Step title="Check version">
+    ```bash
+    frontier --help
+    ```
+    
+    You should see help output with available commands.
+  </Step>
+  
+  <Step title="View command reference">
+    ```bash
+    frontier reference
+    ```
+    
+    This prints the complete CLI command reference.
+  </Step>
+</Steps>
+
+## Next Steps
+
+Now that Frontier is installed:
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Set up your first Frontier instance
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/server">
+    Configure Frontier server settings
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/cli/commands">
+    Explore CLI commands
+  </Card>
+  <Card title="Admin Portal" icon="gauge-high" href="/guides/admin-portal">
+    Access the web interface
+  </Card>
+</CardGroup>
+
+<Note>
+  Having issues? Check the [GitHub issues](https://github.com/raystack/frontier/issues) or ask for help in [discussions](https://github.com/raystack/frontier/discussions).
+</Note>

@@ -1,0 +1,796 @@
+---
+title: Authorization Examples
+description: Real-world authorization patterns and complete workflows in Frontier
+---
+
+This guide demonstrates practical authorization scenarios using Frontier's RBAC model with complete API examples.
+
+## Example 1: E-Commerce Store Authorization
+
+Let's build a complete authorization system for an e-commerce platform called "Raystack Store" with custom shopping cart permissions.
+
+### Scenario
+
+**Raystack Store** needs to:
+- Manage financial documents in a project called "Financials"
+- Control access to sensitive files with custom permissions
+- Allow the accountant (Jane) to read financial files
+- Prevent unauthorized access
+
+### Step 1: Create Custom Permissions
+
+First, create custom permissions for file storage:
+
+<CodeGroup>
+```yaml permissions.yaml
+permissions:
+  - name: get
+    namespace: storage/file
+    metadata:
+      description: "Allows retrieving files from storage"
+  - name: delete
+    namespace: storage/file
+    metadata:
+      description: "Allows deleting files from storage"
+  - name: post
+    namespace: storage/file
+    metadata:
+      description: "Allows uploading files to storage"
+```
+
+```bash Create via API (Superuser)
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/permissions' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+-H 'Authorization: Bearer superuser-token' \
+--data-raw '{
+  "name": "get",
+  "namespace": "storage/file",
+  "metadata": {
+    "description": "Allows retrieving files from storage"
+  }
+}'
+```
+</CodeGroup>
+
+**Generated permission slugs:**
+- `storage_file_get`
+- `storage_file_delete`
+- `storage_file_post`
+
+### Step 2: Create Custom Roles
+
+Create roles for different file access levels:
+
+<CodeGroup>
+```bash Storage File Owner
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/raystack-store/roles' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+--data-raw '{
+  "name": "storage_file_owner",
+  "title": "Storage File Owner",
+  "permissions": [
+    "storage_file_get",
+    "storage_file_post",
+    "storage_file_delete"
+  ],
+  "metadata": {
+    "description": "Full ownership and control over files"
+  }
+}'
+```
+
+```bash Storage File Reader
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/raystack-store/roles' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "name": "storage_file_reader",
+  "title": "Storage File Reader",
+  "permissions": [
+    "storage_file_get"
+  ],
+  "metadata": {
+    "description": "Read-only access to files"
+  }
+}'
+```
+</CodeGroup>
+
+### Step 3: Create the Resource
+
+John creates a sensitive financial file in the Financials project:
+
+```bash
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/projects/financials-project-id/resources' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+--data-raw '{
+  "name": "sensitive-info.txt",
+  "namespace": "storage/file",
+  "metadata": {
+    "content_type": "text/plain",
+    "description": "Q4 2023 financial details"
+  }
+}'
+```
+
+**Response:**
+```json
+{
+  "resource": {
+    "id": "92f69c3a-334b-4f25-90b8-4d4f3be6b825",
+    "name": "sensitive-info.txt",
+    "namespace": "storage/file",
+    "projectId": "financials-project-id"
+  }
+}
+```
+
+### Step 4: Grant Access with Policy
+
+John grants Jane (accountant) read access to the file:
+
+```bash
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/policies' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+--data-raw '{
+  "roleId": "storage_file_reader",
+  "principalId": "jane@raystack.com",
+  "principalType": "app/user",
+  "resourceId": "92f69c3a-334b-4f25-90b8-4d4f3be6b825",
+  "resourceType": "storage/file"
+}'
+```
+
+### Step 5: Verify Access
+
+Check if Jane can read the file:
+
+<CodeGroup>
+```bash Check Permission
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/check' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+-H 'Authorization: Basic amFuZUByYXlzdGFjay5jb206cGFzc3dvcmQ=' \
+--data-raw '{
+  "permission": "get",
+  "resource": "storage/file:92f69c3a-334b-4f25-90b8-4d4f3be6b825"
+}'
+```
+
+```json Success Response
+{
+  "status": true
+}
+```
+</CodeGroup>
+
+Check if Jane can delete (should fail):
+
+<CodeGroup>
+```bash Check Delete Permission
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/check' \
+-H 'Content-Type: application/json' \
+-H 'Authorization: Basic amFuZUByYXlzdGFjay5jb206cGFzc3dvcmQ=' \
+--data-raw '{
+  "permission": "delete",
+  "resource": "storage/file:92f69c3a-334b-4f25-90b8-4d4f3be6b825"
+}'
+```
+
+```json Denied Response
+{
+  "status": false
+}
+```
+</CodeGroup>
+
+## Example 2: Shopping Cart Management
+
+Build authorization for a shopping cart service with multiple user roles.
+
+### Step 1: Define Cart Permissions
+
+```yaml cart-permissions.yaml
+permissions:
+  - name: delete
+    namespace: potato/cart
+  - name: update
+    namespace: potato/cart
+  - name: get
+    namespace: potato/cart
+  - name: list
+    namespace: potato/cart
+```
+
+### Step 2: Create Cart Roles
+
+<Steps>
+  <Step title="Cart Admin Role">
+    Full control over all cart operations
+    
+    ```bash
+    curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/ecommerce-org/roles' \
+    -H 'Content-Type: application/json' \
+    --data-raw '{
+      "name": "cart_admin",
+      "title": "Cart Administrator",
+      "permissions": [
+        "potato_cart_delete",
+        "potato_cart_update",
+        "potato_cart_get",
+        "potato_cart_list"
+      ]
+    }'
+    ```
+  </Step>
+  
+  <Step title="Cart Manager Role">
+    Can view and modify carts but not delete
+    
+    ```bash
+    curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/ecommerce-org/roles' \
+    -H 'Content-Type: application/json' \
+    --data-raw '{
+      "name": "cart_manager",
+      "title": "Cart Manager",
+      "permissions": [
+        "potato_cart_update",
+        "potato_cart_get"
+      ]
+    }'
+    ```
+  </Step>
+  
+  <Step title="Cart Viewer Role">
+    Read-only access to carts
+    
+    ```bash
+    curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/ecommerce-org/roles' \
+    -H 'Content-Type: application/json' \
+    --data-raw '{
+      "name": "cart_viewer",
+      "title": "Cart Viewer",
+      "permissions": [
+        "potato_cart_get",
+        "potato_cart_list"
+      ]
+    }'
+    ```
+  </Step>
+</Steps>
+
+### Step 3: Assign Roles to Team
+
+Grant different access levels to team members:
+
+<CodeGroup>
+```bash Admin Access
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/ecommerce-org/policies' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "roleId": "cart_admin",
+  "principalId": "admin@ecommerce.com",
+  "principalType": "app/user"
+}'
+```
+
+```bash Manager Access
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/ecommerce-org/policies' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "roleId": "cart_manager",
+  "principalId": "cart-service-account",
+  "principalType": "app/serviceuser"
+}'
+```
+
+```bash Viewer Access (Group)
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/ecommerce-org/policies' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "roleId": "cart_viewer",
+  "principalId": "support-team",
+  "principalType": "app/group"
+}'
+```
+</CodeGroup>
+
+## Example 3: Multi-Project Access Control
+
+Manage access across multiple projects with hierarchical permissions.
+
+### Scenario Structure
+
+```
+Organization: TechCorp
+├── Project: Backend Services
+│   ├── Resource: compute/instance:api-server
+│   └── Resource: compute/instance:worker-node
+└── Project: Data Analytics  
+    ├── Resource: storage/bucket:raw-data
+    └── Resource: storage/bucket:processed-data
+```
+
+### Access Requirements
+
+<Steps>
+  <Step title="Alice: Platform Admin">
+    Full access to entire organization
+    
+    ```bash
+    curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/techcorp/policies' \
+    -H 'Content-Type: application/json' \
+    --data-raw '{
+      "roleId": "app_organization_owner",
+      "principalId": "alice@techcorp.com",
+      "principalType": "app/user"
+    }'
+    ```
+    
+    **Result**: Alice can access all projects and resources.
+  </Step>
+  
+  <Step title="Bob: Backend Project Manager">
+    Manage only Backend Services project
+    
+    ```bash
+    curl -L -X POST 'http://127.0.0.1:7400/v1beta1/projects/backend-services/policies' \
+    -H 'Content-Type: application/json' \
+    --data-raw '{
+      "roleId": "app_project_manager",
+      "principalId": "bob@techcorp.com",
+      "principalType": "app/user"
+    }'
+    ```
+    
+    **Result**: Bob can manage Backend Services but not Data Analytics.
+  </Step>
+  
+  <Step title="Data Team: Analytics Viewers">
+    Read-only access to Data Analytics project
+    
+    ```bash
+    curl -L -X POST 'http://127.0.0.1:7400/v1beta1/projects/data-analytics/policies' \
+    -H 'Content-Type: application/json' \
+    --data-raw '{
+      "roleId": "app_project_viewer",
+      "principalId": "data-team",
+      "principalType": "app/group"
+    }'
+    ```
+    
+    **Result**: All data team members can view Data Analytics resources.
+  </Step>
+</Steps>
+
+### Permission Checks
+
+<CodeGroup>
+```bash Alice Checks Org Access
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/check' \
+-H 'Authorization: Bearer alice-token' \
+--data-raw '{
+  "permission": "update",
+  "resource": "org:techcorp"
+}'
+# Returns: {"status": true}
+```
+
+```bash Bob Checks Backend Project
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/check' \
+-H 'Authorization: Bearer bob-token' \
+--data-raw '{
+  "permission": "update",
+  "resource": "app/project:backend-services"
+}'
+# Returns: {"status": true}
+```
+
+```bash Bob Checks Analytics Project  
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/check' \
+-H 'Authorization: Bearer bob-token' \
+--data-raw '{
+  "permission": "update",
+  "resource": "app/project:data-analytics"
+}'
+# Returns: {"status": false}
+```
+
+```bash Data Team Member Checks Read
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/check' \
+-H 'Authorization: Bearer data-member-token' \
+--data-raw '{
+  "permission": "get",
+  "resource": "storage/bucket:raw-data"
+}'
+# Returns: {"status": true}
+```
+</CodeGroup>
+
+## Example 4: Compute Instance Deployment
+
+Control who can deploy and manage compute instances.
+
+### Step 1: Create Compute Permissions
+
+```yaml compute-permissions.yaml
+permissions:
+  - name: create
+    namespace: compute/instance
+  - name: deploy
+    namespace: compute/instance
+  - name: restart
+    namespace: compute/instance
+  - name: delete
+    namespace: compute/instance
+  - name: get
+    namespace: compute/instance
+```
+
+### Step 2: Create Deployment Roles
+
+<CodeGroup>
+```bash Instance Operator
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/roles' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "name": "instance_operator",
+  "title": "Instance Operator",
+  "permissions": [
+    "compute_instance_deploy",
+    "compute_instance_restart",
+    "compute_instance_get"
+  ],
+  "metadata": {
+    "description": "Deploy and restart instances"
+  }
+}'
+```
+
+```bash Instance Admin
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/roles' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "name": "instance_admin",
+  "title": "Instance Administrator",
+  "permissions": [
+    "compute_instance_create",
+    "compute_instance_deploy",
+    "compute_instance_restart",
+    "compute_instance_delete",
+    "compute_instance_get"
+  ]
+}'
+```
+</CodeGroup>
+
+### Step 3: Create Instance and Assign Access
+
+```bash Create Instance
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/projects/backend-services/resources' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "name": "prod-api-server",
+  "namespace": "compute/instance",
+  "metadata": {
+    "region": "us-east-1",
+    "instance_type": "t3.large"
+  }
+}'
+```
+
+```bash Grant Operator Access
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/policies' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "roleId": "instance_operator",
+  "principalId": "devops-team",
+  "principalType": "app/group",
+  "resourceId": "prod-api-server-id",
+  "resourceType": "compute/instance"
+}'
+```
+
+### Step 4: Verify Deployment Permission
+
+```bash
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/check' \
+-H 'Authorization: Bearer devops-member-token' \
+--data-raw '{
+  "permission": "deploy",
+  "resource": "compute/instance:prod-api-server-id"
+}'
+```
+
+**Response**: `{"status": true}` - DevOps team members can deploy.
+
+## Example 5: Service Account Authorization
+
+Grant API access to service accounts for automated systems.
+
+### Scenario
+
+A billing service needs to:
+- Read organization information
+- View billing details
+- Create billing entries
+
+### Step 1: Create Service User
+
+```bash
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/acme-corp/serviceusers' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "name": "billing-service",
+  "metadata": {
+    "description": "Automated billing system"
+  }
+}'
+```
+
+### Step 2: Create Custom Billing Role
+
+```bash
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/acme-corp/roles' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "name": "billing_service_role",
+  "title": "Billing Service Role",
+  "permissions": [
+    "app_organization_get",
+    "app_organization_billingview",
+    "app_organization_billingmanage"
+  ]
+}'
+```
+
+### Step 3: Grant Role to Service User
+
+```bash
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/acme-corp/policies' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "roleId": "billing_service_role",
+  "principalId": "billing-service-id",
+  "principalType": "app/serviceuser"
+}'
+```
+
+### Step 4: Service Account Makes API Calls
+
+```bash
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/check' \
+-H 'Authorization: Basic YmlsbGluZy1zZXJ2aWNlOmNsaWVudC1zZWNyZXQ=' \
+--data-raw '{
+  "permission": "billingmanage",
+  "resource": "org:acme-corp"
+}'
+```
+
+**Response**: `{"status": true}`
+
+## Common Authorization Patterns
+
+### Pattern 1: Role Hierarchy
+
+Implement role inheritance with different permission levels:
+
+```
+Viewer → Manager → Owner → Admin
+```
+
+<CodeGroup>
+```text Permission Mapping
+Viewer:  [get]
+Manager: [get, update]
+Owner:   [get, update, delete]
+Admin:   [get, update, delete, administer]
+```
+
+```bash Implementation
+# Create roles with increasing permissions
+# Viewer
+{"permissions": ["resource_get"]}
+
+# Manager (includes Viewer)
+{"permissions": ["resource_get", "resource_update"]}
+
+# Owner (includes Manager)
+{"permissions": ["resource_get", "resource_update", "resource_delete"]}
+
+# Admin (includes Owner + special permissions)
+{"permissions": ["resource_get", "resource_update", "resource_delete", "resource_administer"]}
+```
+</CodeGroup>
+
+### Pattern 2: Team-Based Access
+
+Use groups for team access management:
+
+```bash Create Team Group
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/acme/groups' \
+-H 'Content-Type: application/json' \
+--data-raw '{"name": "frontend-team"}'
+```
+
+```bash Add Members to Group
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/groups/frontend-team/members' \
+--data-raw '{"userId": "developer1@acme.com"}'
+
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/groups/frontend-team/members' \
+--data-raw '{"userId": "developer2@acme.com"}'
+```
+
+```bash Grant Role to Entire Group
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/projects/frontend-app/policies' \
+--data-raw '{
+  "roleId": "app_project_manager",
+  "principalId": "frontend-team",
+  "principalType": "app/group"
+}'
+```
+
+### Pattern 3: Temporary Access
+
+Grant time-limited access by creating and later revoking policies:
+
+```bash Grant Temporary Access
+# Create policy
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/acme/policies' \
+--data-raw '{
+  "roleId": "app_organization_viewer",
+  "principalId": "contractor@external.com",
+  "principalType": "app/user",
+  "metadata": {
+    "expires": "2024-12-31",
+    "reason": "Q4 audit access"
+  }
+}'
+
+# Later, revoke access
+curl -L -X DELETE 'http://127.0.0.1:7400/v1beta1/organizations/acme/policies/{policy-id}'
+```
+
+### Pattern 4: Resource-Specific Access
+
+Grant access to specific resources only:
+
+```bash Project A Access Only
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/projects/project-a/policies' \
+--data-raw '{
+  "roleId": "app_project_viewer",
+  "principalId": "user@acme.com",
+  "principalType": "app/user"
+}'
+# User can ONLY view Project A, not Project B
+```
+
+## Troubleshooting Authorization
+
+### Check Why Access is Denied
+
+<Steps>
+  <Step title="Verify User Identity">
+    Ensure the user is authenticated and credentials are valid
+    
+    ```bash
+    curl -L -X GET 'http://127.0.0.1:7400/v1beta1/users/self' \
+    -H 'Authorization: Bearer user-token'
+    ```
+  </Step>
+  
+  <Step title="List User Policies">
+    Check what roles the user has
+    
+    ```bash
+    curl -L -X GET 'http://127.0.0.1:7400/v1beta1/users/user@acme.com/policies'
+    ```
+  </Step>
+  
+  <Step title="Inspect Role Permissions">
+    Verify the role contains the needed permission
+    
+    ```bash
+    curl -L -X GET 'http://127.0.0.1:7400/v1beta1/roles/app_project_viewer'
+    ```
+  </Step>
+  
+  <Step title="Check Permission Format">
+    Ensure permission slug is correct
+    
+    ```bash
+    # Incorrect: app.project.get
+    # Correct: app_project_get or just "get"
+    ```
+  </Step>
+  
+  <Step title="Verify Resource Format">
+    Check resource namespace and ID format
+    
+    ```bash
+    # Valid formats:
+    # app/project:project-id
+    # project:project-id
+    # org:org-name
+    ```
+  </Step>
+</Steps>
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Permission Denied Despite Having Role">
+    **Cause**: Role is disabled or permission slug doesn't match
+    
+    **Solution**: Check role state and verify permission slugs match exactly
+    
+    ```bash
+    curl -L -X GET 'http://127.0.0.1:7400/v1beta1/roles/{role-id}'
+    # Check: "state": "enabled" and permissions array
+    ```
+  </Accordion>
+  
+  <Accordion title="Group Members Can't Access Resource">
+    **Cause**: Policy principal is the group, but Check API uses user ID
+    
+    **Solution**: This is expected. The group relationship automatically cascades to members via SpiceDB's `member` sub-relation.
+  </Accordion>
+  
+  <Accordion title="Custom Permission Not Found">
+    **Cause**: Permission wasn't created or slug format is wrong
+    
+    **Solution**: List permissions and verify the slug
+    
+    ```bash
+    curl -L -X GET 'http://127.0.0.1:7400/v1beta1/permissions?namespace=custom/resource'
+    ```
+  </Accordion>
+  
+  <Accordion title="Service Account Access Denied">
+    **Cause**: Using wrong authentication method or client ID/secret
+    
+    **Solution**: Use Basic auth with service user credentials
+    
+    ```bash
+    # Encode: service-user-id:client-secret in base64
+    curl -H 'Authorization: Basic <base64-encoded-credentials>'
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices Summary
+
+<CardGroup cols={2}>
+  <Card title="Start with Predefined Roles" icon="shield-check">
+    Use built-in roles like `app_organization_owner` before creating custom roles
+  </Card>
+  
+  <Card title="Use Groups for Teams" icon="users">
+    Manage team access via groups instead of individual user policies
+  </Card>
+  
+  <Card title="Grant Least Privilege" icon="lock">
+    Assign minimal permissions needed; use viewer roles by default
+  </Card>
+  
+  <Card title="Document Custom Roles" icon="file-text">
+    Add descriptive metadata explaining purpose and usage
+  </Card>
+  
+  <Card title="Regular Access Reviews" icon="calendar">
+    Audit policies periodically to remove unnecessary access
+  </Card>
+  
+  <Card title="Test Permission Checks" icon="vial">
+    Always verify authorization works before production deployment
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<Card title="API Reference" icon="book" href="/api-reference">
+  Explore complete API documentation for all authorization endpoints
+</Card>

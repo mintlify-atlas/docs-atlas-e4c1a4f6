@@ -1,0 +1,143 @@
+---
+title: Billing Overview
+description: Comprehensive billing solution with Stripe integration for managing pricing, subscriptions, and payments
+---
+
+## Overview
+
+The Frontier Billing Service is a comprehensive solution for managing all billing-related operations in your platform. It provides a robust pricing engine that allows you to create and manage various pricing plans and features, onboard customers, and handle all billing transactions seamlessly.
+
+The service is designed to be flexible and scalable, accommodating a wide range of billing scenarios. It supports the creation of features and plans based on monthly and yearly pricing, and integrates with Stripe for seamless payment processing.
+
+## Key Features
+
+### Billing Accounts
+Billing accounts represent the billing relationship between an organization and a customer. They store essential billing information including name, email, address, currency, and payment methods. Each organization can have a billing account automatically created or manually configured.
+
+### Subscriptions
+Subscriptions represent a customer's commitment to pay for a specific plan on a recurring basis. Support for trial periods, prorations, and automatic renewals make subscription management flexible and powerful.
+
+### Products and Plans
+Products represent individual capabilities or resources that you charge for, while plans are collections of products offered at a specific price. Products can have different behaviors (basic, credits, per_seat) to support various pricing models.
+
+### Features
+Features are individual functionalities that a product offers. They cannot be individually purchased but are offerings of a product itself. When a product is purchased by a customer, they are entitled to all features offered by that product.
+
+### Entitlement Checks
+Restrict functionalities for customers based on their subscriptions and purchased products. Frontier provides entitlement checks to verify a customer's access to specific features.
+
+### Virtual Credits
+Support pay-as-you-go models with virtual credits. Customers can purchase credits and consume them based on usage, separate from subscription-based access.
+
+### Checkouts
+Checkouts represent the process of a customer agreeing to a subscription or purchasing a product. Integration with Stripe Checkout provides a seamless payment experience.
+
+## Stripe Integration
+
+Frontier uses Stripe as the default billing engine for payment processing. The integration includes:
+
+- **Customer Management**: Automatically sync customer data between Frontier and Stripe
+- **Payment Processing**: Leverage Stripe Checkout for secure payment collection
+- **Subscription Management**: Handle recurring billing and prorations through Stripe
+- **Webhook Support**: Real-time synchronization of billing events
+- **Test Mode**: Support for Stripe test clocks to simulate billing scenarios
+
+### Stripe Test Clocks
+
+Stripe allows simulating test clocks to test subscriptions, payments, and invoices. The clock needs to be created from the Stripe dashboard, and the clock ID must be passed as a request header while creating a new billing customer account.
+
+```http
+X-Stripe-Test-Clock: clk_123
+```
+
+<Warning>
+Once the clock expires, all of its resources also expire. Only platform users can use this header to test Frontier mechanics.
+</Warning>
+
+## Architecture
+
+### Data Synchronization
+
+Frontier maintains a background syncer that periodically synchronizes customer and subscription data with Stripe to ensure consistency. This handles:
+
+- Customer profile updates made directly in Stripe
+- Subscription state changes and cancellations
+- Payment method updates
+- Invoice and payment status changes
+
+The sync frequency is configurable through the `refresh_interval` configuration parameter.
+
+### Provider ID Mapping
+
+Each billing entity in Frontier (customers, products, subscriptions) has a corresponding `provider_id` that maps to the Stripe entity ID. This enables:
+
+- Bidirectional synchronization between systems
+- Direct Stripe API access when needed
+- Consistent state management
+
+## API Capabilities
+
+The Billing Service provides comprehensive APIs for:
+
+- **Account Management**: Create, update, and delete billing accounts with full address and tax information
+- **Subscription Management**: Create, update, cancel, and list subscriptions with metadata support
+- **Product Management**: Create and manage products with configurable pricing models and behaviors
+- **Feature Management**: Define and manage feature catalogs that compose products
+- **Checkout Sessions**: Create checkout sessions for subscriptions or one-time purchases
+- **Usage Reporting**: Report platform usage for metered billing and credit consumption
+- **Entitlement Verification**: Check user access to specific features based on subscriptions
+- **Balance Access**: View current credit balance and transaction history
+- **Plan Management**: Create and manage plans that bundle products at specific pricing
+
+## Getting Started
+
+<Steps>
+  <Step title="Enable Billing Service">
+    Configure the billing engine (Stripe) with your API keys and webhook endpoints in the Frontier configuration.
+  </Step>
+  
+  <Step title="Create Products and Features">
+    Define your product catalog, including features and pricing. Products can have different behaviors (basic, credits, per_seat) based on your business model.
+  </Step>
+  
+  <Step title="Create Plans">
+    Bundle products into plans with monthly or yearly pricing intervals. Configure trial periods and starter credits as needed.
+  </Step>
+  
+  <Step title="Onboard Customers">
+    Create billing accounts for organizations and enable them to subscribe to plans or purchase products through checkout sessions.
+  </Step>
+</Steps>
+
+## Configuration
+
+Key billing configuration options include:
+
+- `auto_create_with_org`: Automatically create billing accounts when organizations are created
+- `default_plan`: Automatically subscribe new organizations to a default plan
+- `default_offline`: Create billing accounts without immediate Stripe registration
+- `onboard_credits_with_org`: Award free credits to new organizations
+- `proration_behavior`: Control how plan changes are prorated
+- `collection_method`: Configure automatic charging or invoice sending
+
+See the [Customers](/billing/customers) and [Subscriptions](/billing/subscriptions) sections for detailed configuration options.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Products and Plans" icon="box" href="/billing/products-and-plans">
+    Learn how to create products, features, and plans for your pricing model
+  </Card>
+  
+  <Card title="Subscriptions" icon="repeat" href="/billing/subscriptions">
+    Manage recurring subscriptions with trials and prorations
+  </Card>
+  
+  <Card title="Customers" icon="users" href="/billing/customers">
+    Set up and manage billing accounts for your organizations
+  </Card>
+  
+  <Card title="Credits" icon="coins" href="/billing/credits">
+    Implement pay-as-you-go models with virtual credits
+  </Card>
+</CardGroup>

@@ -1,0 +1,481 @@
+---
+title: Role Management
+description: Understanding and managing predefined and custom roles in Frontier
+---
+
+A role is a collection of permissions that can be assigned to users, groups, or service accounts. Roles simplify access management by grouping related permissions together.
+
+## Role Structure
+
+<CodeGroup>
+```go Role Model
+type Role struct {
+    ID          string
+    OrgID       string           // Empty for platform-wide roles
+    Name        string           // e.g., "app_organization_owner"
+    Title       string           // e.g., "Organization Owner"
+    Permissions []string         // Permission slugs
+    State       string           // "enabled" or "disabled"
+    Scopes      []string         // Used for filtering
+    Metadata    map[string]any
+    CreatedAt   time.Time
+    UpdatedAt   time.Time
+}
+```
+
+```json Example Role
+{
+  "role": {
+    "id": "8e73f4a2-3763-4dc6-a00e-7a9aebeaa971",
+    "name": "app_organization_owner",
+    "title": "Organization Owner",
+    "permissions": ["app_organization_administer"],
+    "state": "enabled",
+    "orgId": "",
+    "metadata": {
+      "description": "Full access to organization",
+      "labels": {"type": "admin"}
+    },
+    "createdAt": "2023-06-07T05:39:56.941Z",
+    "updatedAt": "2023-06-07T05:39:56.941Z"
+  }
+}
+```
+</CodeGroup>
+
+## How Roles Work
+
+When a role is assigned to a user:
+
+1. A **policy** is created binding the role to the user on a resource
+2. The user **inherits all permissions** from that role
+3. SpiceDB creates **relationships** between the role and permissions
+4. Permission checks traverse these relationships to determine access
+
+## Predefined Roles
+
+Frontier includes several predefined platform-wide roles.
+
+### Organization Roles
+
+<Tabs>
+  <Tab title="Owner">
+    **`app_organization_owner`**
+    
+    Full administrative control over the organization and all resources within it.
+    
+    **Permissions:**
+    - `app_organization_administer`
+    
+    <Note>
+    The `administer` permission hierarchically includes all other organization permissions.
+    </Note>
+  </Tab>
+  
+  <Tab title="Manager">
+    **`app_organization_manager`**
+    
+    Manage organization details and resources without full administrative access.
+    
+    **Permissions:**
+    - `app_organization_update`
+    - `app_organization_get`
+    - `app_organization_projectcreate`
+    - `app_organization_projectlist`
+    - `app_organization_groupcreate`
+    - `app_organization_grouplist`
+    - `app_organization_serviceusermanage`
+    - `app_project_get`
+    - `app_project_update`
+  </Tab>
+  
+  <Tab title="Access Manager">
+    **`app_organization_accessmanager`**
+    
+    Manage user access and invitations without resource management.
+    
+    **Permissions:**
+    - `app_organization_invitationcreate`
+    - `app_organization_invitationlist`
+    - `app_organization_rolemanage`
+    - `app_organization_policymanage`
+  </Tab>
+  
+  <Tab title="Viewer">
+    **`app_organization_viewer`**
+    
+    Read-only access to organization information.
+    
+    **Permissions:**
+    - `app_organization_get`
+  </Tab>
+</Tabs>
+
+### Project Roles
+
+| Role | Permissions | Description |
+|------|-------------|-------------|
+| **`app_project_owner`** | `app_project_administer` | Full project administrative access |
+| **`app_project_manager`** | `app_project_update`<br/>`app_project_get`<br/>`app_project_resourcelist`<br/>`app_organization_projectcreate`<br/>`app_organization_projectlist`<br/>`app_organization_grouplist` | Manage project details and resources |
+| **`app_project_viewer`** | `app_project_get` | Read-only project access |
+
+### Group Roles
+
+| Role | Permissions | Description |
+|------|-------------|-------------|
+| **`app_group_owner`** | `app_group_administer` | Full group administrative access |
+| **`app_group_member`** | `app_group_get` | View group information |
+
+### Billing Role
+
+| Role | Permissions | Description |
+|------|-------------|-------------|
+| **`app_billing_manager`** | `app_organization_billingview`<br/>`app_organization_billingmanage` | Manage organization billing |
+
+## Custom Roles
+
+Create custom roles to meet specific authorization requirements beyond predefined roles.
+
+### Platform vs Organization Roles
+
+<Tabs>
+  <Tab title="Platform Roles">
+    **Created by**: Frontier superusers
+    
+    **Scope**: Available across all organizations
+    
+    **Use case**: Standard roles used organization-wide
+    
+    **OrgID**: Empty string
+  </Tab>
+  
+  <Tab title="Organization Roles">
+    **Created by**: Organization admins
+    
+    **Scope**: Only available within the specific organization
+    
+    **Use case**: Organization-specific access patterns
+    
+    **OrgID**: Organization UUID
+  </Tab>
+</Tabs>
+
+### Creating Custom Roles
+
+<Steps>
+  <Step title="Identify Required Permissions">
+    Determine which permissions the role needs. Use permission slugs like `potato_cart_update`.
+  </Step>
+  
+  <Step title="Choose Scope">
+    Decide if the role should be platform-wide or organization-specific.
+  </Step>
+  
+  <Step title="Create the Role">
+    Use the API to create the role with appropriate permissions.
+  </Step>
+  
+  <Step title="Assign via Policies">
+    Bind the role to users through policies on specific resources.
+  </Step>
+</Steps>
+
+### Example: Shopping Cart Manager
+
+Let's create a custom role for managing shopping carts:
+
+```bash Create Organization Role
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/4d726cf5-52f6-46f1-9c87-1a79f29e3abf/roles' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+--data-raw '{
+  "name": "cart_manager",
+  "title": "Cart Manager",
+  "permissions": [
+    "potato_cart_update",
+    "potato_cart_get",
+    "potato_cart_delete"
+  ],
+  "metadata": {
+    "description": "Manage shopping cart operations",
+    "labels": {"team": "ecommerce"}
+  }
+}'
+```
+
+<Note>
+Permission slugs must exist before being added to a role. Create custom permissions first if needed.
+</Note>
+
+## Role States
+
+Roles can be in one of two states:
+
+<Tabs>
+  <Tab title="Enabled">
+    **Status**: `enabled`
+    
+    The role is active and can be assigned to users via policies. Users with this role can exercise its permissions.
+  </Tab>
+  
+  <Tab title="Disabled">
+    **Status**: `disabled`
+    
+    The role is deactivated. Users cannot exercise permissions from disabled roles, but the role definition is preserved.
+    
+    **Use cases:**
+    - Temporary suspensions during investigations
+    - Policy/compliance violations
+    - Security concerns
+    - Seasonal access patterns
+  </Tab>
+</Tabs>
+
+### Deactivating a Role
+
+Temporarily disable a role without deleting it:
+
+```bash
+curl -L -X PUT 'http://127.0.0.1:7400/v1beta1/organizations/{orgId}/roles/{roleId}' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "state": "disabled"
+}'
+```
+
+### Reactivating a Role
+
+Re-enable a disabled role:
+
+```bash
+curl -L -X PUT 'http://127.0.0.1:7400/v1beta1/organizations/{orgId}/roles/{roleId}' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "state": "enabled"
+}'
+```
+
+## Managing Roles via API
+
+<Warning>
+These APIs require special privileges. Authenticate with Client ID/Secret or Access Token.
+</Warning>
+
+### List Organization Roles
+
+Retrieve custom roles created within an organization:
+
+```bash List All Org Roles
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/organizations/4d726cf5-52f6-46f1-9c87-1a79f29e3abf/roles' \
+-H 'Accept: application/json'
+```
+
+Filter by state:
+
+```bash List Enabled Roles Only
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/organizations/4d726cf5-52f6-46f1-9c87-1a79f29e3abf/roles?state=enabled' \
+-H 'Accept: application/json'
+```
+
+<Note>
+This endpoint only returns organization-specific custom roles. Platform-wide default roles are not included.
+</Note>
+
+### List Platform Roles
+
+Retrieve all predefined platform-wide roles:
+
+```bash
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/roles' \
+-H 'Accept: application/json'
+```
+
+Filter by state:
+
+```bash
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/roles?state=enabled' \
+-H 'Accept: application/json'
+```
+
+### Create Organization Role
+
+Create a custom role scoped to an organization:
+
+<CodeGroup>
+```bash Request
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/organizations/4d726cf5-52f6-46f1-9c87-1a79f29e3abf/roles' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+--data-raw '{
+  "name": "data_analyst",
+  "title": "Data Analyst",
+  "permissions": [
+    "app_project_get",
+    "app_project_resourcelist"
+  ],
+  "metadata": {
+    "description": "Read-only access to project data"
+  }
+}'
+```
+
+```json Response
+{
+  "role": {
+    "id": "c2d85306-96f4-4895-98b4-c3e5c2f3084d",
+    "name": "data_analyst",
+    "title": "Data Analyst",
+    "permissions": [
+      "app_project_get",
+      "app_project_resourcelist"
+    ],
+    "orgId": "4d726cf5-52f6-46f1-9c87-1a79f29e3abf",
+    "state": "enabled",
+    "metadata": {
+      "description": "Read-only access to project data"
+    },
+    "createdAt": "2023-06-07T05:39:56.941Z",
+    "updatedAt": "2023-06-07T05:39:56.941Z"
+  }
+}
+```
+</CodeGroup>
+
+### Update Organization Role
+
+Modify an existing custom role:
+
+```bash
+curl -L -X PUT 'http://127.0.0.1:7400/v1beta1/organizations/4d726cf5-52f6-46f1-9c87-1a79f29e3abf/roles/c2d85306-96f4-4895-98b4-c3e5c2f3084d' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+--data-raw '{
+  "name": "cart_manager",
+  "title": "Cart Manager",
+  "permissions": [
+    "potato_cart_update",
+    "potato_cart_get",
+    "potato_cart_delete"
+  ],
+  "metadata": {
+    "description": "Full cart management access"
+  }
+}'
+```
+
+<Note>
+Updating a role's permissions automatically updates SpiceDB relationships for all existing policy assignments.
+</Note>
+
+### Delete Organization Role
+
+<Warning>
+**Caution**: Deleting a role is irreversible and permanently removes:
+- The role definition
+- All policies using this role
+- All user access granted through this role
+
+Users will immediately lose access to resources granted via this role.
+</Warning>
+
+```bash
+curl -L -X DELETE 'http://127.0.0.1:7400/v1beta1/organizations/4d726cf5-52f6-46f1-9c87-1a79f29e3abf/roles/c2d85306-96f4-4895-98b4-c3e5c2f3084d' \
+-H 'Accept: application/json'
+```
+
+## Role Implementation Details
+
+When a role is created in Frontier:
+
+### 1. Role-Permission Relations Created
+
+For each permission in the role, Frontier creates SpiceDB relations:
+
+```zed
+// For user principals
+app/role:cart_manager#potato_cart_update@app/user:*
+app/role:cart_manager#potato_cart_get@app/user:*
+app/role:cart_manager#potato_cart_delete@app/user:*
+
+// For service user principals  
+app/role:cart_manager#potato_cart_update@app/serviceuser:*
+app/role:cart_manager#potato_cart_get@app/serviceuser:*
+app/role:cart_manager#potato_cart_delete@app/serviceuser:*
+```
+
+The `*` wildcard means "all users who have this role will have these permissions."
+
+### 2. Dynamic Permission Updates
+
+When updating a role:
+
+<Steps>
+  <Step title="Fetch Existing Role">
+    Retrieve current role definition from database
+  </Step>
+  
+  <Step title="Delete Old Relations">
+    Remove all existing role-permission relationships from SpiceDB
+  </Step>
+  
+  <Step title="Create New Relations">
+    Establish new relationships for updated permissions
+  </Step>
+  
+  <Step title="Update Database">
+    Persist the updated role definition
+  </Step>
+  
+  <Step title="Audit Record">
+    Create audit trail of the role modification
+  </Step>
+</Steps>
+
+### 3. Role Deletion Process
+
+Deleting a role:
+
+1. Removes all SpiceDB relations for the role
+2. Deletes all policies using the role (cascading delete)
+3. Removes the role from the database
+4. Creates audit record of deletion
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Predefined Roles When Possible">
+    Leverage built-in roles like `app_organization_owner` before creating custom roles. They're battle-tested and cover common scenarios.
+  </Accordion>
+  
+  <Accordion title="Follow Least Privilege Principle">
+    Grant only the minimum permissions required. Create narrow, focused roles rather than overly permissive ones.
+  </Accordion>
+  
+  <Accordion title="Use Descriptive Names">
+    Choose clear role names that indicate purpose (e.g., `billing_viewer`, `project_deployer`) rather than vague terms.
+  </Accordion>
+  
+  <Accordion title="Document Custom Roles">
+    Always add metadata with descriptions explaining the role's purpose and intended users.
+  </Accordion>
+  
+  <Accordion title="Prefer Disabling to Deleting">
+    Temporarily disable roles instead of deleting them when access needs to be revoked. This preserves audit history.
+  </Accordion>
+  
+  <Accordion title="Review Role Permissions Regularly">
+    Periodically audit custom roles to ensure permissions still match organizational needs.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Policies" icon="scroll" href="/authorization/policies">
+    Learn how to assign roles to users via policies
+  </Card>
+  
+  <Card title="Examples" icon="code" href="/authorization/examples">
+    See real-world role usage patterns
+  </Card>
+</CardGroup>

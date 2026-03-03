@@ -1,0 +1,630 @@
+---
+title: Glossary
+description: Key terms and definitions used in Frontier documentation
+---
+
+# Glossary
+
+This page provides definitions for key terminology and concepts used throughout Frontier documentation.
+
+## Core Concepts
+
+### Access Token
+
+An access token is a credential that serves as proof of authentication and authorization to access protected resources in a system or an API. After successful authentication, an access token is included in the headers or parameters of API requests to validate the user's identity and permissions.
+
+The access token contains information such as:
+- Client's identity (user ID or service user ID)
+- Permissions granted
+- Expiration time
+- Issuer information
+
+The server validates the access token to determine if the client is authorized to access the requested resource.
+
+<Info>
+Frontier issues JWT access tokens that are self-contained and can be verified by backend services without calling Frontier.
+</Info>
+
+### Authentication (AuthN)
+
+The process of verifying the identity of a user, service, or system. Authentication answers the question: "Who are you?"
+
+In Frontier, authentication confirms that:
+- A user is who they claim to be (via password, social login, OTP)
+- A service account has valid credentials (via API key, JWT)
+- A session is valid and not expired
+
+<Note>
+Authentication must happen before authorization. You must prove who you are before the system can determine what you're allowed to do.
+</Note>
+
+### Authorization (AuthZ)
+
+The process of determining whether an authenticated user is allowed to perform a specific action on a resource. Authorization answers the question: "What are you allowed to do?"
+
+Frontier uses role-based access control (RBAC) and delegates authorization decisions to SpiceDB. Authorization checks take the form:
+
+```
+Can <user> do <action> on <resource>?
+```
+
+### Audit Log
+
+A comprehensive, chronological record of all events and actions performed within Frontier, including:
+- User authentication events
+- Authorization checks (success and failure)
+- Resource creation and modification
+- Policy changes
+- Administrative actions
+
+Audit logs are critical for compliance, security monitoring, and troubleshooting.
+
+## Identity & Access
+
+### User
+
+A human individual who can authenticate and access resources. Users are identified by:
+- **Email address**: Primary unique identifier
+- **User ID**: System-generated UUID
+- **Name**: Display name
+
+Users can belong to multiple organizations and have different roles in each.
+
+**User Properties:**
+- Email (unique, required)
+- Name (optional)
+- Title (optional)
+- Avatar URL (optional)
+- Metadata (custom key-value pairs)
+- State (enabled/disabled)
+
+### Service User
+
+A machine identity or service account used for system-to-system communication. Service users authenticate using:
+- Client ID and Client Secret
+- JWT tokens signed with private keys
+
+Service users belong to an organization and can be assigned roles just like human users.
+
+<Info>
+Use service users for background jobs, microservices, CI/CD pipelines, and any automated processes that need to access Frontier-protected resources.
+</Info>
+
+### Principal
+
+A principal is any entity that can be authenticated and granted permissions. In Frontier, principals include:
+
+1. **User**: A human user or service account identified by email or ID
+2. **Group**: A collection of users
+3. **All Registered Users**: A special principal representing all users who have registered in Frontier
+
+Policies bind principals to roles on resources.
+
+### Group
+
+A collection of users within an organization. Groups simplify access management by allowing you to:
+- Assign roles to multiple users at once
+- Manage team-based access
+- Organize users logically (e.g., by department, team, project)
+
+**Group Properties:**
+- Name (unique within organization)
+- Title (display name)
+- Members (list of user IDs)
+- Organization ID (parent organization)
+- Metadata
+
+**Example Use Case:**
+```
+Group: "Engineering Team"
+Members: [user1, user2, user3]
+Policy: Engineering Team → project_owner role on Project Alpha
+Result: All engineering team members can manage Project Alpha
+```
+
+### Session
+
+An authenticated connection between a user and Frontier. Sessions are created after successful authentication and stored as encrypted cookies in the user's browser.
+
+**Session Properties:**
+- Session ID (unique identifier)
+- User ID (authenticated user)
+- Created at, updated at timestamps
+- Expiration time
+- Metadata (browser, OS, IP address, location)
+
+**Session Lifecycle:**
+1. **Creation**: Automatic after successful authentication
+2. **Validation**: Checked on each request
+3. **Activity Tracking**: Updated on user activity
+4. **Expiration**: Based on configured validity period or manual revocation
+
+<Warning>
+Sessions do not automatically extend on activity. They expire based on the configured validity period from creation time.
+</Warning>
+
+## Multi-Tenancy
+
+### Organization
+
+An organization is the top-level tenant boundary in Frontier. Each organization represents a distinct tenant in your SaaS application and contains:
+
+- **Users**: Members of the organization
+- **Groups**: Collections of users
+- **Projects**: Logical groupings of resources
+- **Roles**: Custom roles specific to the organization
+- **Policies**: Access control rules
+- **Billing**: Subscription and payment information
+
+**Organization Properties:**
+- Name (unique identifier, slug format)
+- Title (human-readable name)
+- Metadata (custom key-value pairs)
+- State (enabled/disabled)
+- Billing ID (link to billing system)
+
+**Key Characteristics:**
+- Organizations are completely isolated from each other
+- Users can belong to multiple organizations
+- Each organization has its own set of admins
+- Resources are scoped to organizations via projects
+
+<Note>
+Organization names must be globally unique across your Frontier instance. Use a clear naming convention like "company-name" or "domain-com".
+</Note>
+
+### Project
+
+A project is a logical grouping of resources within an organization. Projects provide:
+
+- **Resource Organization**: Group related resources together
+- **Access Control**: Apply roles and permissions at the project level
+- **Environment Separation**: Separate dev, staging, production resources
+
+**Project Properties:**
+- Name (unique identifier within organization)
+- Title (display name)
+- Organization ID (parent organization)
+- Metadata
+- State (enabled/disabled)
+
+**Hierarchy:**
+```
+Organization (Tenant)
+└── Project (Environment/Team)
+    └── Resources (Your application entities)
+```
+
+**Example:**
+```
+Organization: "Acme Corp"
+├── Project: "Frontend App"
+│   ├── Resource: api.acme.com
+│   └── Resource: app.acme.com
+└── Project: "Backend Services"
+    ├── Resource: auth-service
+    └── Resource: payment-service
+```
+
+### Namespace
+
+A namespace defines a type of resource that requires authorization. Namespaces are of two types:
+
+#### 1. System Namespace
+
+Built-in namespaces for Frontier's core resources:
+- `app/organization`: Organization resources
+- `app/project`: Project resources
+- `app/group`: Group resources
+
+These namespaces have predefined permissions and roles.
+
+#### 2. Resource Namespace
+
+Custom namespaces for your application's resources:
+- `compute/instance`: Virtual machine instances
+- `storage/bucket`: Storage buckets
+- `database/postgres`: PostgreSQL databases
+
+**Namespace Format:**
+```
+<backend>/<resource_type>
+```
+
+- **Backend**: Your service or application name
+- **Resource Type**: Type of resource (optional for top-level namespaces)
+
+**Example:**
+```yaml
+namespace: "myapp/documents"
+permissions:
+  - view
+  - edit
+  - delete
+  - share
+```
+
+<Info>
+Define namespaces for all resources in your application that need access control. Each namespace can have its own set of permissions.
+</Info>
+
+### Resource
+
+A resource is any entity in your application that requires authorization. Resources:
+
+- Belong to a **project** (which belongs to an organization)
+- Have a **namespace** (resource type)
+- Are identified by a **URN** (Unique Resource Name)
+- Can have policies attached to control access
+
+**Resource Properties:**
+- ID (system-generated UUID)
+- Name (user-provided identifier)
+- Title (display name)
+- URN (Frontier Resource Name)
+- Project ID
+- Namespace ID
+- Metadata
+
+**URN Format:**
+```
+frn:<project>:<namespace>:<resource_name>
+```
+
+**Example:**
+```
+frn:frontend-app:myapp/documents:financial-report-2024
+
+Project: frontend-app
+Namespace: myapp/documents
+Resource: financial-report-2024
+```
+
+### Resource Type
+
+A classification that defines a category of resources. Each resource type:
+- Belongs to a namespace
+- Defines available permissions
+- Has associated roles
+
+For example:
+- **Resource Type**: `compute/instance`
+- **Permissions**: `start`, `stop`, `reboot`, `delete`, `view`
+- **Resources**: `instance-1`, `instance-2`, `instance-3`
+
+## Access Control
+
+### Permission
+
+A permission is a specific action that can be performed on a resource. Permissions are the atomic units of authorization.
+
+**Examples:**
+- `app_organization_get`: View organization details
+- `app_project_update`: Modify project settings
+- `app_group_delete`: Delete a group
+- `compute_instance_start`: Start a VM instance
+- `storage_bucket_create`: Create a storage bucket
+
+**Permission Naming Convention:**
+```
+<namespace>_<resource>_<action>
+```
+
+**Built-in Actions:**
+- `get`: Read/view resource
+- `create`: Create new instances
+- `update`: Modify existing resource
+- `delete`: Remove resource
+- `list`: List all resources
+- `administer`: Full control (includes all actions)
+
+<Note>
+Define granular permissions for fine-grained access control. Avoid giving users more permissions than they need (principle of least privilege).
+</Note>
+
+### Role
+
+A role is a named collection of permissions that can be assigned to principals. Roles simplify permission management by grouping related permissions.
+
+**Role Properties:**
+- Name (unique identifier)
+- Title (display name)
+- Permissions (list of permission IDs)
+- Scopes (namespaces where role applies)
+- Organization ID (for custom roles)
+
+**Built-in Roles:**
+
+| Role | Scope | Permissions | Description |
+|------|-------|-------------|-------------|
+| `app_organization_owner` | Organization | Full control | Organization administrator |
+| `app_organization_manager` | Organization | Update, view | Can manage organization settings |
+| `app_organization_viewer` | Organization | View only | Read-only access to organization |
+| `app_project_owner` | Project | Full control | Project administrator |
+| `app_project_manager` | Project | Update, view | Can manage project settings |
+| `app_project_viewer` | Project | View only | Read-only access to project |
+| `app_group_owner` | Group | Full control | Group administrator |
+| `app_group_member` | Group | View | Group member |
+
+**Custom Roles:**
+
+Organization owners can create custom roles with specific permission combinations:
+
+```json
+{
+  "name": "app_project_contributor",
+  "title": "Project Contributor",
+  "permissions": [
+    "app_project_get",
+    "app_project_resourcecreate",
+    "app_project_resourceupdate"
+  ]
+}
+```
+
+<Info>
+Use custom roles to implement your organization's specific access patterns. For example, create a "Developer" role with appropriate permissions for your engineering team.
+</Info>
+
+### Policy
+
+A policy binds a principal (user, group, or service user) to a role on a specific resource. Policies are how you grant access in Frontier.
+
+**Policy Components:**
+- **Principal**: Who gets access (user, group, service user)
+- **Role**: What permissions they get
+- **Resource**: What they can access
+- **Resource Type**: Where the role applies (organization, project, custom resource)
+
+**Policy Structure:**
+```json
+{
+  "roleId": "app_project_owner",
+  "principalId": "user-123",
+  "principalType": "user",
+  "resourceId": "project-abc",
+  "resourceType": "app/project"
+}
+```
+
+**Policy Examples:**
+
+1. **User as Project Owner:**
+   ```
+   User: john@example.com
+   Role: app_project_owner
+   Resource: project-frontend
+   Result: John has full control over the frontend project
+   ```
+
+2. **Group as Organization Viewer:**
+   ```
+   Group: external-auditors
+   Role: app_organization_viewer
+   Resource: org-acme
+   Result: All auditors can view organization details
+   ```
+
+3. **Service User with Custom Role:**
+   ```
+   Service User: backup-service
+   Role: custom_backup_operator
+   Resource: project-production
+   Result: Backup service can access production resources for backups
+   ```
+
+<Warning>
+Deleting a policy immediately revokes access. Users will lose permissions as soon as the policy is removed.
+</Warning>
+
+### RBAC (Role-Based Access Control)
+
+RBAC is an access control methodology that restricts system access based on roles. In RBAC:
+
+1. **Permissions** define what actions can be performed
+2. **Roles** group permissions into logical sets
+3. **Policies** assign roles to principals on resources
+4. **Authorization** checks if a principal's roles include the required permission
+
+**RBAC Benefits:**
+- Simplified permission management
+- Easier auditing and compliance
+- Reduced risk of permission errors
+- Scalable access control model
+
+**RBAC in Frontier:**
+```
+User → Policy → Role → Permissions → Action Allowed/Denied
+```
+
+## Authentication Methods
+
+### Client ID
+
+The Client ID is a public identifier assigned to a client application or service user. It helps identify the application when making requests to Frontier.
+
+**Characteristics:**
+- Public (can be shared)
+- Used with Client Secret for authentication
+- Unique per service user
+
+### Client Secret
+
+The Client Secret is a confidential string or password associated with a service user. It must be kept secure and only known to the service and Frontier.
+
+**Security Requirements:**
+- Store securely (use environment variables, secret managers)
+- Never commit to version control
+- Rotate regularly
+- Use separate credentials for dev/staging/production
+
+<Warning>
+If a Client Secret is compromised, immediately rotate it through the Frontier admin interface or API.
+</Warning>
+
+### JWT Token
+
+A JSON Web Token (JWT) is a self-contained access token encoded as JSON and signed for integrity. JWTs conform to the [RFC 7519 standard](https://datatracker.ietf.org/doc/html/rfc7519).
+
+**JWT Structure:**
+
+1. **Header**: Algorithm and token type
+   ```json
+   {"alg": "RS256", "typ": "JWT"}
+   ```
+
+2. **Payload**: Claims about the user
+   ```json
+   {
+     "sub": "user-123",
+     "email": "john@example.com",
+     "exp": 1735689600
+   }
+   ```
+
+3. **Signature**: Cryptographic signature using RSA private key
+
+**JWT Benefits:**
+- Self-contained (no database lookup needed)
+- Verifiable by any service with the public key
+- Compact and URL-safe
+- Industry standard
+
+### Identity Provider (IdP)
+
+An external service that authenticates users and provides identity information. Frontier integrates with IdPs through OpenID Connect (OIDC).
+
+**Supported Identity Providers:**
+- Google
+- GitHub
+- Microsoft Azure AD
+- Okta
+- Auth0
+- Any OIDC-compliant provider
+
+**How It Works:**
+1. User clicks "Sign in with Google"
+2. Frontier redirects to Google (IdP)
+3. User authenticates with Google
+4. Google returns ID token to Frontier
+5. Frontier verifies token and creates/retrieves user
+6. User is logged into Frontier
+
+### Issuer URL
+
+The Issuer URL in OIDC uniquely identifies the identity provider. It serves as a reference point for discovering the IdP's configuration and endpoints.
+
+**Example:**
+```
+https://accounts.google.com
+```
+
+From the issuer URL, Frontier discovers:
+- Authorization endpoint
+- Token endpoint
+- UserInfo endpoint
+- JWKS (public keys) endpoint
+
+### OIDC (OpenID Connect)
+
+OpenID Connect is an identity layer built on top of OAuth 2.0 that enables clients to verify user identity based on authentication performed by an authorization server.
+
+**OIDC Flow:**
+1. User initiates login
+2. App redirects to OIDC provider
+3. User authenticates
+4. Provider returns authorization code
+5. App exchanges code for ID token and access token
+6. App verifies ID token and extracts user info
+
+**OIDC Tokens:**
+- **ID Token**: Contains user identity claims (name, email, etc.)
+- **Access Token**: Used to access APIs
+- **Refresh Token**: Used to obtain new access tokens
+
+### Redirect URI
+
+The Redirect URI (or callback URL) is registered with the OIDC provider and indicates where the provider should redirect the user after authentication.
+
+**Example:**
+```
+https://frontier.example.com/v1beta1/auth/callback
+```
+
+**Security:**
+- Must be registered with the IdP
+- Must use HTTPS in production
+- Should validate state parameter to prevent CSRF attacks
+
+### SSO (Single Sign-On)
+
+SSO allows users to authenticate once and access multiple applications without re-authenticating for each one.
+
+**How Frontier Enables SSO:**
+1. User logs into Frontier via OIDC provider
+2. Frontier creates a session
+3. User accesses Application A (uses Frontier session)
+4. User accesses Application B (uses same Frontier session)
+5. No re-authentication required
+
+**Benefits:**
+- Improved user experience
+- Reduced password fatigue
+- Centralized access control
+- Simplified auditing
+
+## Authorization Engine
+
+### SpiceDB
+
+[SpiceDB](https://github.com/authzed/spicedb) is an open-source, Google Zanzibar-inspired permissions database that powers Frontier's authorization.
+
+**Key Features:**
+- **Relationship-based**: Models permissions as relationships between objects
+- **High performance**: Thousands of authorization checks per second
+- **Consistency**: Support for consistent reads across distributed systems
+- **Expressive**: Rich schema language for complex permission models
+
+**SpiceDB Schema Example:**
+```
+definition project {
+  relation owner: user
+  relation member: user
+  
+  permission edit = owner + member
+  permission view = edit + owner
+  permission delete = owner
+}
+```
+
+**SpiceDB APIs Used by Frontier:**
+- **Check**: Verify if user has permission on resource
+- **Expand**: Find all users with permission on resource
+- **Write**: Create/update permission relationships
+- **Read**: Query existing relationships
+
+<Info>
+Frontier manages the SpiceDB schema automatically. You don't need to write SpiceDB schemas directly—Frontier generates them from your namespace and role configurations.
+</Info>
+
+### Backend
+
+In Frontier terminology, a "backend" is an external service or application that uses Frontier for authentication and authorization.
+
+**Backend Responsibilities:**
+- Verify JWT tokens from clients
+- Extract user identity from tokens
+- Make authorization decisions (query Frontier API)
+- Implement business logic
+
+**Backend Integration:**
+```
+Client → Frontier (auth) → Backend (business logic)
+```
+
+## Related Documentation
+
+- [Architecture](/concepts/architecture) - System architecture and components
+- [Authentication Guide](/docs/authn/introduction) - Authentication setup and strategies
+- [Authorization Guide](/docs/authz/overview) - Authorization concepts and policies
+- [API Reference](/docs/reference/api-definitions) - Complete API documentation

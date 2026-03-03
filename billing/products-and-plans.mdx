@@ -1,0 +1,430 @@
+---
+title: Products and Plans
+description: Create and manage products, features, and plans for flexible pricing models
+---
+
+## Overview
+
+Products and plans are the building blocks of your pricing model in Frontier. Products represent individual capabilities or resources that you charge for, while plans are logical groupings of products offered at specific prices and intervals.
+
+## Products
+
+A product is an item being sold by the platform and has a corresponding reference in the billing engine (Stripe). Products can contain multiple features and have various pricing options.
+
+### Product Structure
+
+```json
+{
+  "id": "prod_123",
+  "provider_id": "prod_stripe_123",
+  "name": "starter_access",
+  "title": "Starter Access",
+  "description": "Base access to the platform",
+  "behavior": "basic",
+  "config": {
+    "credit_amount": 0,
+    "seat_limit": 0,
+    "min_quantity": 1,
+    "max_quantity": 100
+  },
+  "prices": [...],
+  "features": [...],
+  "state": "active",
+  "metadata": {}
+}
+```
+
+### Product Behaviors
+
+Frontier offers three types of product behaviors that control how products are billed and consumed:
+
+#### 1. Basic Behavior
+
+The default behavior for standard products with no special billing logic.
+
+```yaml
+products:
+  - name: basic_access
+    title: Basic base access
+    description: Base access to the platform
+    behavior: basic  # or omit, as basic is default
+    prices:
+      - name: monthly
+        interval: month
+        amount: 100
+        currency: usd
+```
+
+#### 2. Credits Behavior
+
+For products that offer virtual credits. When purchased, credits are automatically added to the organization's account.
+
+```yaml
+products:
+  - name: support_credits
+    title: Support Credits
+    description: Support for enterprise help
+    behavior: credits
+    config:
+      credit_amount: 100  # Credits awarded per purchase
+    prices:
+      - name: default
+        amount: 20000  # Price in minor currency units (cents)
+        currency: usd
+```
+
+<Note>
+When a product with `credits` behavior is purchased, the `credit_amount` specified in the config is automatically credited to the customer's account.
+</Note>
+
+#### 3. Per Seat Behavior
+
+For seat-based pricing where organizations are charged based on the number of users. Frontier automatically handles proration when users are added or removed.
+
+```yaml
+products:
+  - name: starter_per_seat
+    title: Starter per seat
+    description: Per seat access cost to the platform
+    behavior: per_seat
+    config:
+      seat_limit: 10  # Maximum number of seats allowed
+    prices:
+      - name: monthly
+        interval: month
+        amount: 20  # Price per seat per month
+        currency: usd
+      - name: yearly
+        interval: year
+        amount: 200  # Price per seat per year
+        currency: usd
+```
+
+<Warning>
+When a product has `per_seat` behavior and a `seat_limit` is configured, organizations cannot add users beyond this limit.
+</Warning>
+
+### Behavior Configuration
+
+The `config` object provides granular control over product behavior:
+
+| Field | Used With | Description |
+|-------|-----------|-------------|
+| `credit_amount` | `credits` | Amount of virtual credits awarded when product is purchased |
+| `seat_limit` | `per_seat` | Maximum number of users/seats allowed |
+| `min_quantity` | All | Minimum quantity that must be purchased |
+| `max_quantity` | All | Maximum quantity that can be purchased |
+
+### Creating a Product
+
+Products are typically created through YAML configuration or via the API:
+
+<CodeGroup>
+```yaml YAML Configuration
+products:
+  - name: starter_access
+    title: Starter Access
+    description: Complete platform access for growing teams
+    behavior: basic
+    prices:
+      - name: monthly
+        interval: month
+        amount: 1000
+        currency: usd
+      - name: yearly
+        interval: year
+        amount: 10000
+        currency: usd
+    features:
+      - name: api_access
+      - name: advanced_analytics
+      - name: priority_support
+```
+
+```bash cURL
+curl -X POST 'https://frontier.example.com/v1beta1/products' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <token>' \
+  -d '{
+    "name": "starter_access",
+    "title": "Starter Access",
+    "description": "Complete platform access for growing teams",
+    "behavior": "basic"
+  }'
+```
+</CodeGroup>
+
+## Features
+
+Features are individual functionalities that a product offers. They are platform-specific concepts and don't have corresponding Stripe entities. Features enable granular control over product capabilities.
+
+### Feature Structure
+
+```json
+{
+  "id": "feat_123",
+  "name": "api_access",
+  "title": "API Access",
+  "product_ids": ["prod_123", "prod_456"],
+  "metadata": {}
+}
+```
+
+### Defining Features
+
+Features can be defined independently or as part of a product:
+
+```yaml
+features:
+  - name: api_access
+    title: API Access
+  - name: advanced_analytics
+    title: Advanced Analytics
+  - name: priority_support
+    title: Priority Support
+
+products:
+  - name: starter_access
+    title: Starter Access
+    features:
+      - name: api_access
+      - name: advanced_analytics
+```
+
+<Note>
+When a customer purchases a product, they automatically get access to all features associated with that product. Use [entitlement checks](/billing/entitlements) to verify feature access.
+</Note>
+
+## Prices
+
+Prices define how much a product costs and at what interval it's billed. Each product can have multiple prices for different intervals and currencies.
+
+### Price Intervals
+
+- `day` - Daily billing
+- `week` - Weekly billing
+- `month` - Monthly billing
+- `year` - Yearly billing
+
+### Price Structure
+
+```json
+{
+  "id": "price_123",
+  "product_id": "prod_123",
+  "provider_id": "price_stripe_123",
+  "name": "monthly",
+  "billing_scheme": "flat",
+  "currency": "usd",
+  "amount": 1000,
+  "usage_type": "licensed",
+  "interval": "month"
+}
+```
+
+### Billing Schemes
+
+#### Flat Pricing
+
+Standard per-unit pricing:
+
+```yaml
+prices:
+  - name: monthly
+    billing_scheme: flat
+    amount: 1000
+    currency: usd
+    interval: month
+```
+
+#### Tiered Pricing
+
+Pricing that changes based on quantity:
+
+```yaml
+prices:
+  - name: volume
+    billing_scheme: tiered
+    tier_mode: graduated  # or 'volume'
+    currency: usd
+    interval: month
+    tiers:
+      - flat_amount: 1000
+        up_to: 10
+      - flat_amount: 800
+        up_to: 50
+      - flat_amount: 600
+        up_to: null  # unlimited
+```
+
+**Tier Modes:**
+- `graduated`: Price changes incrementally as quantity increases through tiers
+- `volume`: Price determined by the total quantity, applies to all units
+
+### Usage Types
+
+- `licensed`: Standard licensed products (default)
+- `metered`: Usage-based products where charges are calculated based on reported usage
+
+## Plans
+
+Plans are logical collections of products offered together. They don't have corresponding Stripe entities but help organize your pricing structure.
+
+### Plan Structure
+
+```json
+{
+  "id": "plan_123",
+  "name": "starter_monthly",
+  "title": "Starter Plan",
+  "description": "Perfect for small teams getting started",
+  "interval": "month",
+  "on_start_credits": 50,
+  "trial_days": 14,
+  "products": [...],
+  "state": "active"
+}
+```
+
+### Creating Plans
+
+Plans bundle multiple products together:
+
+```yaml
+plans:
+  - name: starter_monthly
+    title: Starter Monthly Plan
+    description: Complete starter package with monthly billing
+    interval: month
+    trial_days: 14
+    on_start_credits: 50  # Free credits awarded when subscription starts
+    products:
+      - name: starter_access
+      - name: starter_per_seat
+```
+
+<Note>
+`on_start_credits` automatically awards virtual credits when a customer subscribes to the plan. These credits can be used for pay-as-you-go features.
+</Note>
+
+## Complete Example
+
+Here's a comprehensive example showing products, features, and plans working together:
+
+```yaml
+features:
+  - name: starter_feature_1
+    title: Advanced Reporting
+  - name: starter_feature_2
+    title: Custom Integrations
+
+products:
+  # Credit purchase product
+  - name: support_credits
+    title: Support Credits
+    description: Purchase support hours as credits
+    behavior: credits
+    config:
+      credit_amount: 100
+    prices:
+      - name: default
+        amount: 20000  # $200.00
+        currency: usd
+
+  # Base access product
+  - name: starter_access
+    title: Starter Access
+    description: Base platform access
+    behavior: basic
+    prices:
+      - name: monthly
+        interval: month
+        amount: 1000  # $10.00
+        currency: usd
+      - name: yearly
+        interval: year
+        amount: 10000  # $100.00
+        currency: usd
+    features:
+      - name: starter_feature_1
+      - name: starter_feature_2
+
+  # Per-seat product
+  - name: starter_per_seat
+    title: Starter Per Seat
+    description: Per user pricing
+    behavior: per_seat
+    config:
+      seat_limit: 10
+    prices:
+      - name: monthly
+        interval: month
+        amount: 20  # $0.20 per seat
+        currency: usd
+
+plans:
+  # Monthly plan
+  - name: starter_monthly
+    title: Starter Monthly Plan
+    description: Monthly billing with trial
+    interval: month
+    trial_days: 14
+    on_start_credits: 50
+    products:
+      - name: starter_access
+      - name: starter_per_seat
+
+  # Yearly plan
+  - name: starter_yearly
+    title: Starter Yearly Plan
+    description: Annual billing with discount
+    interval: year
+    trial_days: 14
+    on_start_credits: 100
+    products:
+      - name: starter_access
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Plan Your Product Hierarchy">
+    Start by defining your features, then group them into products, and finally bundle products into plans.
+  </Step>
+  
+  <Step title="Choose Appropriate Behaviors">
+    Use `basic` for standard products, `credits` for pay-as-you-go models, and `per_seat` for user-based pricing.
+  </Step>
+  
+  <Step title="Set Reasonable Limits">
+    Configure `seat_limit`, `min_quantity`, and `max_quantity` to prevent abuse and guide customer choices.
+  </Step>
+  
+  <Step title="Offer Multiple Intervals">
+    Provide both monthly and yearly pricing options to give customers flexibility.
+  </Step>
+  
+  <Step title="Use Metadata">
+    Store additional custom information in the `metadata` field for filtering and reporting.
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Subscriptions" icon="repeat" href="/billing/subscriptions">
+    Learn how customers subscribe to plans
+  </Card>
+  
+  <Card title="Entitlements" icon="shield-check" href="/billing/entitlements">
+    Check feature access for customers
+  </Card>
+  
+  <Card title="Credits" icon="coins" href="/billing/credits">
+    Implement virtual credits system
+  </Card>
+  
+  <Card title="Customers" icon="users" href="/billing/customers">
+    Manage billing accounts
+  </Card>
+</CardGroup>

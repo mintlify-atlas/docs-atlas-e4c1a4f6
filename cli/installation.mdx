@@ -1,0 +1,359 @@
+---
+title: Installation
+description: Install and set up the Frontier CLI
+---
+
+The Frontier CLI is distributed as a single binary that can be installed on Linux, macOS, and Windows.
+
+## Prerequisites
+
+Before installing the Frontier CLI, ensure you have:
+
+- Operating System: Linux, macOS, or Windows
+- Architecture: AMD64 (x86_64) or ARM64
+- Network access to download the binary (or access to your organization's artifact repository)
+
+## Installation Methods
+
+### Using Pre-built Binaries
+
+#### Linux and macOS
+
+Download the latest release for your platform:
+
+<CodeGroup>
+```bash Linux (AMD64)
+curl -L https://github.com/raystack/frontier/releases/latest/download/frontier_linux_amd64 -o frontier
+chmod +x frontier
+sudo mv frontier /usr/local/bin/
+```
+
+```bash Linux (ARM64)
+curl -L https://github.com/raystack/frontier/releases/latest/download/frontier_linux_arm64 -o frontier
+chmod +x frontier
+sudo mv frontier /usr/local/bin/
+```
+
+```bash macOS (Intel)
+curl -L https://github.com/raystack/frontier/releases/latest/download/frontier_darwin_amd64 -o frontier
+chmod +x frontier
+sudo mv frontier /usr/local/bin/
+```
+
+```bash macOS (Apple Silicon)
+curl -L https://github.com/raystack/frontier/releases/latest/download/frontier_darwin_arm64 -o frontier
+chmod +x frontier
+sudo mv frontier /usr/local/bin/
+```
+</CodeGroup>
+
+#### Windows
+
+1. Download the Windows executable from the [releases page](https://github.com/raystack/frontier/releases)
+2. Rename the downloaded file to `frontier.exe`
+3. Add the directory containing `frontier.exe` to your system PATH
+
+### Using Go Install
+
+If you have Go installed (version 1.21 or later):
+
+```bash
+go install github.com/raystack/frontier@latest
+```
+
+<Note>
+Make sure `$GOPATH/bin` or `$HOME/go/bin` is in your system PATH.
+</Note>
+
+### Building from Source
+
+For development or custom builds:
+
+```bash
+# Clone the repository
+git clone https://github.com/raystack/frontier.git
+cd frontier
+
+# Build the binary
+go build -o frontier .
+
+# Move to PATH
+sudo mv frontier /usr/local/bin/
+```
+
+## Verify Installation
+
+Confirm the installation by checking the version:
+
+```bash
+frontier version
+```
+
+You should see output similar to:
+
+```
+Frontier: A secure and easy-to-use Authentication & Authorization Server
+Version: v0.x.x
+Build date: 2024-xx-xx
+Commit: xxxxxxx
+```
+
+## Initial Configuration
+
+### Server Configuration
+
+If you're setting up a Frontier server, initialize the configuration:
+
+```bash
+frontier server init -o config.yaml
+```
+
+This creates a sample configuration file at `config.yaml`. Edit this file to configure:
+
+- Database connection (PostgreSQL)
+- SpiceDB connection for authorization
+- Authentication settings
+- API server port and host
+- And more
+
+### Client Configuration
+
+For CLI client operations, initialize the client config:
+
+```bash
+frontier config init
+```
+
+This creates a configuration file at:
+- Linux/macOS: `$HOME/.config/raystack/frontier/config.yaml`
+- Windows: `%APPDATA%\raystack\frontier\config.yaml`
+
+Edit the config to set your default host:
+
+```yaml
+host: http://localhost:8080
+```
+
+## Configuration File Locations
+
+Frontier looks for configuration files in the following locations:
+
+### Server Config
+
+Specified explicitly with the `-c` or `--config` flag:
+
+```bash
+frontier server start -c /path/to/config.yaml
+```
+
+### Client Config
+
+Default locations (in order of precedence):
+
+1. `$RAYSTACK_CONFIG_DIR/frontier/config.yaml`
+2. `$XDG_CONFIG_HOME/raystack/frontier/config.yaml`
+3. `$HOME/.config/raystack/frontier/config.yaml`
+
+You can view the current client configuration:
+
+```bash
+frontier config list
+```
+
+## Environment Variables
+
+Configure the CLI using environment variables:
+
+<ParamField path="RAYSTACK_CONFIG_DIR" type="string">
+  Override the default config directory
+  
+  **Example:** `/etc/raystack`
+</ParamField>
+
+<ParamField path="NO_COLOR" type="string">
+  Disable colored output
+  
+  **Example:** `1`
+</ParamField>
+
+<ParamField path="CLICOLOR" type="string">
+  Disable ANSI colors when set to `0`
+  
+  **Example:** `0`
+</ParamField>
+
+## Database Setup
+
+Frontier requires PostgreSQL and SpiceDB. Before running migrations:
+
+### PostgreSQL
+
+```bash
+# Create database
+creatdb frontier
+
+# Or using psql
+psql -c "CREATE DATABASE frontier;"
+```
+
+Update your `config.yaml` with the database URL:
+
+```yaml
+db:
+  driver: postgres
+  url: postgres://user:password@localhost:5432/frontier?sslmode=disable
+```
+
+### SpiceDB
+
+Frontier uses SpiceDB for authorization. Install and run SpiceDB:
+
+```bash
+# Using Docker
+docker run -d \
+  --name spicedb \
+  -p 50051:50051 \
+  authzed/spicedb serve \
+  --grpc-preshared-key "frontier"
+```
+
+Update your `config.yaml`:
+
+```yaml
+spicedb:
+  host: localhost:50051
+  pre_shared_key: frontier
+```
+
+## Running Database Migrations
+
+After configuring the database, run migrations:
+
+```bash
+frontier server migrate -c config.yaml
+```
+
+This will:
+- Create all necessary database tables
+- Set up default metadata schemas
+- Prepare the database for use
+
+## Testing the Installation
+
+### Start the Server
+
+```bash
+frontier server start -c config.yaml
+```
+
+The server should start on the configured port (default: 8080).
+
+### Seed Sample Data
+
+Populate the database with sample data for testing:
+
+```bash
+frontier seed -H X-Frontier-Email:admin@example.com -c config.yaml
+```
+
+This creates:
+- Sample users
+- Sample organizations
+- Sample projects
+- Sample roles and permissions
+- Sample policies
+
+### Verify API Access
+
+Check that the API is accessible:
+
+```bash
+curl http://localhost:8080/v1beta1/users
+```
+
+## Updating Frontier
+
+To update to the latest version:
+
+### Binary Installation
+
+Download and replace the binary:
+
+```bash
+curl -L https://github.com/raystack/frontier/releases/latest/download/frontier_linux_amd64 -o frontier
+chmod +x frontier
+sudo mv frontier /usr/local/bin/
+```
+
+### Go Install
+
+```bash
+go install github.com/raystack/frontier@latest
+```
+
+### Check for Updates
+
+The `version` command automatically checks for new releases:
+
+```bash
+frontier version
+```
+
+## Troubleshooting
+
+### Command Not Found
+
+If you get a "command not found" error:
+
+1. Verify the binary is in your PATH:
+   ```bash
+   which frontier
+   ```
+
+2. Add the directory to your PATH:
+   ```bash
+   # Add to ~/.bashrc or ~/.zshrc
+   export PATH="$PATH:/usr/local/bin"
+   ```
+
+### Permission Denied
+
+If you get permission errors:
+
+```bash
+# Make the binary executable
+chmod +x /usr/local/bin/frontier
+```
+
+### Database Connection Issues
+
+1. Verify PostgreSQL is running:
+   ```bash
+   psql -h localhost -U postgres -c "SELECT 1;"
+   ```
+
+2. Check database URL in config.yaml
+3. Verify network connectivity
+
+### SpiceDB Connection Issues
+
+1. Verify SpiceDB is running:
+   ```bash
+   grpcurl -plaintext localhost:50051 list
+   ```
+
+2. Check SpiceDB configuration in config.yaml
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="CLI Overview" icon="terminal" href="./overview">
+    Learn about CLI capabilities
+  </Card>
+  <Card title="Commands Reference" icon="book" href="./commands">
+    Explore all available commands
+  </Card>
+  <Card title="Shell Autocomplete" icon="keyboard" href="./shell-autocomplete">
+    Set up command autocompletion
+  </Card>
+</CardGroup>

@@ -1,0 +1,860 @@
+---
+title: 'Audit Logging and Compliance'
+description: 'Track all system activity for security, compliance, and troubleshooting'
+icon: 'list-check'
+---
+
+## Overview
+
+Audit logs provide a comprehensive record of all actions performed in Frontier. Every user interaction, permission check, and system event is recorded with details about who did what, when, and to which resource.
+
+<Note>
+Audit logs are essential for:
+- **Security monitoring**: Detect suspicious activity
+- **Compliance**: Meet SOC 2, HIPAA, GDPR requirements
+- **Troubleshooting**: Debug permission issues
+- **Analytics**: Understand user behavior
+- **Forensics**: Investigate incidents
+</Note>
+
+## What Gets Logged
+
+Frontier logs these categories of events:
+
+### User Actions
+```
+app.user.created        - New user registered
+app.user.updated        - User profile modified
+app.user.deleted        - User account deleted
+app.user.listed         - User list accessed
+app.serviceuser.created - Service user created
+app.serviceuser.deleted - Service user removed
+```
+
+### Organization Actions
+```
+app.organization.created        - Organization created
+app.organization.updated        - Organization modified
+app.organization.deleted        - Organization removed
+app.organization.disabled       - Organization disabled
+app.organization.member.created - Member added to org
+app.organization.member.deleted - Member removed from org
+app.organization.kyc.updated    - KYC info updated
+```
+
+### Project Actions
+```
+app.project.created - Project created
+app.project.updated - Project modified
+app.project.deleted - Project removed
+```
+
+### Group Actions
+```
+app.group.created          - Group created
+app.group.updated          - Group modified
+app.group.deleted          - Group removed
+app.group.members.removed  - Members removed from group
+```
+
+### Permission & Authorization
+```
+app.permission.created - Permission created
+app.permission.updated - Permission modified
+app.permission.deleted - Permission removed
+app.permission.checked - Permission checked
+app.policy.created     - Policy created
+app.policy.deleted     - Policy removed
+```
+
+### Role Actions
+```
+app.role.created - Role created
+app.role.updated - Role modified
+app.role.deleted - Role removed
+```
+
+### Resource Actions
+```
+app.resource.created - Resource created
+app.resource.updated - Resource modified
+app.resource.deleted - Resource removed
+```
+
+### Billing Actions
+```
+app.billing.entitlement.checked        - Entitlement checked
+app.billing.account.details.updated    - Billing details updated
+```
+
+## Enabling Audit Logging
+
+Configure audit logging in your `config.yaml`:
+
+<Tabs>
+  <Tab title="Database (Recommended)">
+    Store logs in PostgreSQL for querying and retention:
+
+    ```yaml config.yaml
+    log:
+      level: info
+      audit_events: db
+    ```
+
+    Logs are stored in the `audit_logs` table.
+  </Tab>
+  
+  <Tab title="Standard Output">
+    Write logs to stdout/stderr (useful for log aggregators):
+
+    ```yaml config.yaml
+    log:
+      level: info
+      audit_events: stdout
+    ```
+
+    Logs appear in JSON format:
+    ```json
+    {"level":"info","time":"2024-03-03T10:30:00Z","audit":{"action":"app.user.created","actor":"user_123"}}
+    ```
+  </Tab>
+  
+  <Tab title="Disabled">
+    Disable audit logging (not recommended for production):
+
+    ```yaml config.yaml
+    log:
+      level: info
+      audit_events: none
+    ```
+  </Tab>
+</Tabs>
+
+## Filtering Noisy Events
+
+Some events can be very frequent (like permission checks). Filter them out:
+
+```yaml config.yaml
+log:
+  audit_events: db
+  ignored_audit_events:
+    - "app.permission.checked"
+    - "app.user.listed"
+    - "app.billing.entitlement.checked"
+```
+
+<Tip>
+**Recommendation**: Start with all events enabled, then analyze what's noisy in your environment and filter accordingly.
+</Tip>
+
+## Audit Log Structure
+
+Each audit log entry contains:
+
+```json
+{
+  "id": "log_abc123xyz",
+  "org_id": "org_456def",
+  "source": "frontier",
+  "action": "app.organization.member.created",
+  "actor": {
+    "id": "user_789ghi",
+    "type": "user",
+    "name": "admin@example.com"
+  },
+  "target": {
+    "id": "user_012jkl",
+    "type": "user",
+    "name": "newuser@example.com"
+  },
+  "metadata": {
+    "role_id": "member",
+    "invited_by": "admin@example.com"
+  },
+  "created_at": "2024-03-03T10:30:00Z"
+}
+```
+
+### Field Descriptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique log entry identifier |
+| `org_id` | string | Organization context (if applicable) |
+| `source` | string | Always "frontier" |
+| `action` | string | Event type (e.g., `app.user.created`) |
+| `actor` | object | Who performed the action |
+| `actor.id` | string | Actor's unique ID |
+| `actor.type` | string | Actor type: `user`, `serviceuser`, `system` |
+| `actor.name` | string | Actor's display name/email |
+| `target` | object | What was affected |
+| `target.id` | string | Target resource ID |
+| `target.type` | string | Resource type: `user`, `organization`, `project`, etc. |
+| `target.name` | string | Target resource name |
+| `metadata` | object | Additional event-specific data |
+| `created_at` | timestamp | When the event occurred |
+
+## Querying Audit Logs
+
+### Via API
+
+<Steps>
+  <Step title="List all audit logs">
+    ```bash
+    curl http://localhost:8000/v1beta1/audit/logs \
+      -H "X-Frontier-Email: admin@example.com"
+    ```
+  </Step>
+
+  <Step title="Filter by organization">
+    ```bash
+    curl "http://localhost:8000/v1beta1/audit/logs?org_id=org_123abc" \
+      -H "X-Frontier-Email: admin@example.com"
+    ```
+  </Step>
+
+  <Step title="Filter by action type">
+    ```bash
+    curl "http://localhost:8000/v1beta1/audit/logs?action=app.user.created" \
+      -H "X-Frontier-Email: admin@example.com"
+    ```
+  </Step>
+
+  <Step title="Filter by actor">
+    ```bash
+    curl "http://localhost:8000/v1beta1/audit/logs?actor_id=user_789" \
+      -H "X-Frontier-Email: admin@example.com"
+    ```
+  </Step>
+
+  <Step title="Filter by date range">
+    ```bash
+    curl "http://localhost:8000/v1beta1/audit/logs?start_time=2024-03-01T00:00:00Z&end_time=2024-03-03T23:59:59Z" \
+      -H "X-Frontier-Email: admin@example.com"
+    ```
+  </Step>
+</Steps>
+
+### Via Admin Portal
+
+<Steps>
+  <Step title="Navigate to Audit Logs">
+    1. Log in to the Admin Portal
+    2. Click **Audit Logs** in the sidebar
+  </Step>
+
+  <Step title="Apply filters">
+    Use the filter panel to narrow results:
+    - **Date range**: Last 24 hours, 7 days, 30 days, or custom
+    - **Organization**: Filter to specific org
+    - **Action type**: Choose from dropdown
+    - **Actor**: Search by user email or ID
+    - **Text search**: Search in metadata
+  </Step>
+
+  <Step title="View log details">
+    Click any log entry to see:
+    - Full JSON payload
+    - Related logs (same actor/target)
+    - Timeline visualization
+  </Step>
+
+  <Step title="Export logs">
+    1. Apply desired filters
+    2. Click **Export**
+    3. Choose format: CSV or JSON
+    4. Download file
+  </Step>
+</Steps>
+
+### Direct Database Queries
+
+For advanced analysis, query the database directly:
+
+```sql
+-- Find all actions by a specific user
+SELECT * FROM audit_logs
+WHERE actor->>'id' = 'user_123abc'
+ORDER BY created_at DESC
+LIMIT 100;
+
+-- Count actions by type in the last 24 hours
+SELECT action, COUNT(*) as count
+FROM audit_logs
+WHERE created_at > NOW() - INTERVAL '24 hours'
+GROUP BY action
+ORDER BY count DESC;
+
+-- Find failed permission checks
+SELECT *
+FROM audit_logs
+WHERE action = 'app.permission.checked'
+  AND metadata->>'status' = 'false'
+ORDER BY created_at DESC;
+
+-- Find organization deletions
+SELECT *
+FROM audit_logs
+WHERE action = 'app.organization.deleted'
+ORDER BY created_at DESC;
+
+-- Find all actions in a specific organization
+SELECT *
+FROM audit_logs
+WHERE org_id = 'org_123abc'
+  AND created_at > '2024-03-01'
+ORDER BY created_at DESC;
+```
+
+## Common Analysis Patterns
+
+<AccordionGroup>
+  <Accordion title="Detect suspicious login activity">
+    ```sql
+    -- Find users with multiple organizations accessed
+    SELECT 
+      actor->>'id' as user_id,
+      actor->>'name' as user_email,
+      COUNT(DISTINCT org_id) as org_count,
+      COUNT(*) as total_actions
+    FROM audit_logs
+    WHERE created_at > NOW() - INTERVAL '1 hour'
+    GROUP BY actor->>'id', actor->>'name'
+    HAVING COUNT(DISTINCT org_id) > 5
+    ORDER BY total_actions DESC;
+    ```
+  </Accordion>
+
+  <Accordion title="Track permission denied events">
+    ```sql
+    -- Find resources users are trying to access without permission
+    SELECT 
+      actor->>'name' as user,
+      target->>'type' as resource_type,
+      metadata->>'permission' as permission,
+      COUNT(*) as denied_count
+    FROM audit_logs
+    WHERE action = 'app.permission.checked'
+      AND metadata->>'status' = 'false'
+      AND created_at > NOW() - INTERVAL '24 hours'
+    GROUP BY actor->>'name', target->>'type', metadata->>'permission'
+    ORDER BY denied_count DESC;
+    ```
+  </Accordion>
+
+  <Accordion title="User activity timeline">
+    ```sql
+    -- Show all actions by a user in chronological order
+    SELECT 
+      created_at,
+      action,
+      target->>'type' as target_type,
+      target->>'name' as target_name,
+      metadata
+    FROM audit_logs
+    WHERE actor->>'id' = 'user_123abc'
+      AND created_at > NOW() - INTERVAL '7 days'
+    ORDER BY created_at DESC;
+    ```
+  </Accordion>
+
+  <Accordion title="Organization membership changes">
+    ```sql
+    -- Track who was added/removed from organizations
+    SELECT 
+      created_at,
+      action,
+      org_id,
+      actor->>'name' as performed_by,
+      target->>'name' as affected_user,
+      metadata
+    FROM audit_logs
+    WHERE action IN (
+      'app.organization.member.created',
+      'app.organization.member.deleted'
+    )
+    ORDER BY created_at DESC;
+    ```
+  </Accordion>
+
+  <Accordion title="Most active users">
+    ```sql
+    -- Find users performing the most actions
+    SELECT 
+      actor->>'name' as user,
+      COUNT(*) as action_count,
+      COUNT(DISTINCT org_id) as orgs_accessed,
+      COUNT(DISTINCT DATE(created_at)) as active_days
+    FROM audit_logs
+    WHERE actor->>'type' = 'user'
+      AND created_at > NOW() - INTERVAL '30 days'
+    GROUP BY actor->>'name'
+    ORDER BY action_count DESC
+    LIMIT 20;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Integrating with SIEM Systems
+
+### Sending Logs to External Systems
+
+<Tabs>
+  <Tab title="Splunk">
+    Use the HTTP Event Collector:
+
+    ```javascript
+    const axios = require('axios');
+
+    async function sendToSplunk(auditLog) {
+      await axios.post(
+        'https://your-splunk.com:8088/services/collector',
+        {
+          event: auditLog,
+          sourcetype: 'frontier:audit'
+        },
+        {
+          headers: {
+            'Authorization': `Splunk ${process.env.SPLUNK_HEC_TOKEN}`
+          }
+        }
+      );
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Elasticsearch / OpenSearch">
+    Index logs for analysis:
+
+    ```javascript
+    const { Client } = require('@elastic/elasticsearch');
+    const client = new Client({ node: 'http://localhost:9200' });
+
+    async function indexAuditLog(log) {
+      await client.index({
+        index: 'frontier-audit-logs',
+        document: {
+          ...log,
+          '@timestamp': log.created_at
+        }
+      });
+    }
+    ```
+  </Tab>
+  
+  <Tab title="AWS CloudWatch">
+    Stream logs to CloudWatch:
+
+    ```javascript
+    const AWS = require('aws-sdk');
+    const cloudwatch = new AWS.CloudWatchLogs();
+
+    async function sendToCloudWatch(log) {
+      await cloudwatch.putLogEvents({
+        logGroupName: '/frontier/audit',
+        logStreamName: '2024/03/03',
+        logEvents: [
+          {
+            message: JSON.stringify(log),
+            timestamp: new Date(log.created_at).getTime()
+          }
+        ]
+      }).promise();
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Datadog">
+    Send logs via HTTP API:
+
+    ```javascript
+    const axios = require('axios');
+
+    async function sendToDatadog(log) {
+      await axios.post(
+        'https://http-intake.logs.datadoghq.com/v1/input',
+        {
+          ddsource: 'frontier',
+          ddtags: `env:production,org:${log.org_id}`,
+          message: JSON.stringify(log),
+          service: 'frontier-audit'
+        },
+        {
+          headers: {
+            'DD-API-KEY': process.env.DATADOG_API_KEY
+          }
+        }
+      );
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Using Webhooks for Real-Time Streaming
+
+Set up a webhook to stream all audit events:
+
+```bash
+curl -X POST http://localhost:8000/v1beta1/admin/webhooks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-siem.com/ingest/frontier",
+    "description": "SIEM audit log ingestion",
+    "subscribed_events": [
+      "app.user.created",
+      "app.user.deleted",
+      "app.organization.created",
+      "app.permission.checked"
+    ]
+  }'
+```
+
+Your SIEM receives logs in real-time as they're created.
+
+## Retention and Archival
+
+### Configure Retention Policy
+
+Audit logs can grow large. Implement a retention policy:
+
+```sql
+-- Archive logs older than 90 days to separate table
+CREATE TABLE audit_logs_archive AS
+SELECT * FROM audit_logs
+WHERE created_at < NOW() - INTERVAL '90 days';
+
+-- Delete archived logs from main table
+DELETE FROM audit_logs
+WHERE created_at < NOW() - INTERVAL '90 days';
+```
+
+### Automated Archival
+
+Set up a cron job or scheduled task:
+
+```bash cron-archive.sh
+#!/bin/bash
+# Run monthly on the 1st at 2 AM
+
+psql $DATABASE_URL <<SQL
+  -- Copy to archive
+  INSERT INTO audit_logs_archive
+  SELECT * FROM audit_logs
+  WHERE created_at < NOW() - INTERVAL '90 days'
+  ON CONFLICT DO NOTHING;
+  
+  -- Delete from main table
+  DELETE FROM audit_logs
+  WHERE created_at < NOW() - INTERVAL '90 days';
+SQL
+
+echo "Archived audit logs older than 90 days"
+```
+
+Add to crontab:
+```
+0 2 1 * * /path/to/cron-archive.sh
+```
+
+### Export for Long-Term Storage
+
+Export logs to object storage:
+
+```bash
+# Export to JSON
+psql $DATABASE_URL -c "COPY (
+  SELECT row_to_json(audit_logs.*) 
+  FROM audit_logs 
+  WHERE created_at < NOW() - INTERVAL '90 days'
+) TO STDOUT" | gzip > audit_logs_2024_q1.json.gz
+
+# Upload to S3
+aws s3 cp audit_logs_2024_q1.json.gz s3://your-bucket/audit-archives/
+```
+
+## Compliance and Reporting
+
+### SOC 2 Requirements
+
+For SOC 2 compliance, you need:
+
+1. **Tamper-proof logs**: Store in append-only or immutable storage
+2. **Access logs**: Track who accessed audit logs
+3. **Retention**: Keep logs for at least 1 year
+4. **Monitoring**: Alert on suspicious activity
+
+<Steps>
+  <Step title="Enable comprehensive logging">
+    ```yaml
+    log:
+      audit_events: db
+      # Don't ignore any events for compliance
+      ignored_audit_events: []
+    ```
+  </Step>
+
+  <Step title="Set up log access auditing">
+    Create a separate audit log for audit log access:
+    ```sql
+    CREATE TABLE audit_log_access (
+      id SERIAL PRIMARY KEY,
+      accessed_by VARCHAR(255),
+      filters JSONB,
+      accessed_at TIMESTAMP DEFAULT NOW()
+    );
+    ```
+  </Step>
+
+  <Step title="Configure retention">
+    Keep logs for required period (1+ years for SOC 2)
+  </Step>
+
+  <Step title="Set up monitoring">
+    Alert on:
+    - Failed login attempts
+    - Permission escalations
+    - Bulk data access
+    - Administrative actions
+  </Step>
+</Steps>
+
+### HIPAA Requirements
+
+For HIPAA compliance:
+
+1. **Encryption**: Encrypt logs at rest and in transit
+2. **Access controls**: Restrict who can view PHI-related logs
+3. **Retention**: Keep for 6 years
+4. **Audit trail**: Track all access to PHI
+
+```yaml
+db:
+  # Enable encryption at rest
+  url: postgres://user:pass@host/db?sslmode=require&sslrootcert=./ca.crt
+  
+log:
+  audit_events: db
+  # Log all PHI access
+  ignored_audit_events: []
+```
+
+### GDPR Considerations
+
+For GDPR compliance:
+
+1. **Right to access**: Users can request their audit logs
+2. **Right to erasure**: Ability to anonymize user data in logs
+3. **Data minimization**: Don't log sensitive personal data
+
+```sql
+-- Anonymize deleted user's audit logs
+UPDATE audit_logs
+SET 
+  actor = jsonb_set(actor, '{name}', '"[deleted user]"'),
+  metadata = metadata - 'email' - 'phone'
+WHERE actor->>'id' = 'user_to_delete';
+```
+
+## Monitoring and Alerts
+
+### Setting Up Alerts
+
+<AccordionGroup>
+  <Accordion title="Multiple failed permission checks">
+    Alert when a user repeatedly tries to access unauthorized resources:
+
+    ```sql
+    SELECT 
+      actor->>'id' as user_id,
+      COUNT(*) as failed_checks
+    FROM audit_logs
+    WHERE action = 'app.permission.checked'
+      AND metadata->>'status' = 'false'
+      AND created_at > NOW() - INTERVAL '5 minutes'
+    GROUP BY actor->>'id'
+    HAVING COUNT(*) > 10;
+    ```
+  </Accordion>
+
+  <Accordion title="Administrative action by non-admin">
+    Alert on privilege escalation attempts:
+
+    ```sql
+    SELECT *
+    FROM audit_logs
+    WHERE action IN (
+      'app.role.created',
+      'app.permission.created',
+      'app.organization.member.created'
+    )
+    AND actor->>'id' NOT IN (
+      SELECT id FROM users WHERE is_admin = true
+    );
+    ```
+  </Accordion>
+
+  <Accordion title="Bulk data access">
+    Alert when someone lists many resources:
+
+    ```sql
+    SELECT 
+      actor->>'name' as user,
+      COUNT(*) as list_operations
+    FROM audit_logs
+    WHERE action LIKE '%.listed'
+      AND created_at > NOW() - INTERVAL '1 hour'
+    GROUP BY actor->>'name'
+    HAVING COUNT(*) > 100;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Integration with Alerting Systems
+
+<CodeGroup>
+```javascript PagerDuty
+const axios = require('axios');
+
+async function alertPagerDuty(severity, description, details) {
+  await axios.post(
+    'https://events.pagerduty.com/v2/enqueue',
+    {
+      routing_key: process.env.PAGERDUTY_KEY,
+      event_action: 'trigger',
+      payload: {
+        summary: description,
+        severity: severity,
+        source: 'frontier-audit',
+        custom_details: details
+      }
+    }
+  );
+}
+
+// Example usage
+awaitPagerDuty('warning', 'Multiple failed permission checks', {
+  user_id: 'user_123',
+  failed_count: 25,
+  time_window: '5 minutes'
+});
+```
+
+```python Slack
+import requests
+
+def alert_slack(message, details):
+    webhook_url = os.environ['SLACK_WEBHOOK_URL']
+    
+    requests.post(webhook_url, json={
+        'text': message,
+        'blocks': [
+            {
+                'type': 'section',
+                'text': {
+                    'type': 'mrkdwn',
+                    'text': f'*Security Alert*\n{message}'
+                }
+            },
+            {
+                'type': 'section',
+                'fields': [
+                    {'type': 'mrkdwn', 'text': f'*User:*\n{details["user"]}'} ,
+                    {'type': 'mrkdwn', 'text': f'*Action:*\n{details["action"]}'}
+                ]
+            }
+        ]
+    })
+
+# Example usage
+alert_slack(
+    'Suspicious activity detected',
+    {'user': 'user@example.com', 'action': 'Multiple failed permission checks'}
+)
+```
+</CodeGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="1. Enable comprehensive logging" icon="toggle-on">
+    Log all events by default. You can always filter later but can't recover unlogged events.
+  </Card>
+  
+  <Card title="2. Set up retention policies" icon="calendar">
+    Archive old logs to cheaper storage. Keep hot logs for 90 days, archive for 1-7 years.
+  </Card>
+  
+  <Card title="3. Monitor continuously" icon="radar">
+    Set up automated alerts for suspicious patterns. Don't wait for incidents.
+  </Card>
+  
+  <Card title="4. Regular reviews" icon="magnifying-glass">
+    Manually review logs weekly. Automated alerts miss novel attack patterns.
+  </Card>
+  
+  <Card title="5. Integrate with SIEM" icon="chart-network">
+    Centralize logs from all systems. Frontier logs are more valuable with context.
+  </Card>
+  
+  <Card title="6. Test your queries" icon="vial">
+    Verify your compliance queries return expected results before you need them.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Logs not appearing in database">
+    **Check**:
+    1. Verify `audit_events: db` in config
+    2. Check database connectivity
+    3. Verify migrations ran successfully
+    4. Check Frontier server logs for errors
+    5. Ensure table `audit_logs` exists
+  </Accordion>
+
+  <Accordion title="Database filling up with logs">
+    **Solutions**:
+    1. Implement retention policy (archive old logs)
+    2. Filter noisy events in config
+    3. Increase disk space
+    4. Set up log rotation
+    5. Export to object storage
+  </Accordion>
+
+  <Accordion title="Can't query logs via API">
+    **Check**:
+    1. User has admin permissions
+    2. Correct API endpoint: `/v1beta1/audit/logs`
+    3. Valid authentication header
+    4. Check CORS if calling from browser
+  </Accordion>
+
+  <Accordion title="Missing expected events">
+    **Causes**:
+    1. Event in `ignored_audit_events` list
+    2. Event type not yet implemented
+    3. Database write failed (check logs)
+    4. Clock skew (check server time)
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    Stream audit events to external systems
+  </Card>
+  
+  <Card title="Admin Portal" icon="desktop" href="/guides/admin-portal">
+    View and export logs visually
+  </Card>
+  
+  <Card title="Authorization" icon="shield" href="/authorization/overview">
+    Understand permission checks in logs
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/configuration/server">
+    Advanced logging configuration
+  </Card>
+</CardGroup>

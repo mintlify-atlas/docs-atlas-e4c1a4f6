@@ -1,0 +1,685 @@
+---
+title: Server Configuration
+---
+
+Frontier server configuration controls the core application behavior, network settings, authentication, and platform-level features. Configuration can be provided via a YAML file or environment variables with the `FRONTIER_SERVICE_` prefix.
+
+## Configuration File
+
+By default, Frontier looks for a configuration file. You can specify a custom config file:
+
+```bash
+frontier server start --config=/path/to/config.yaml
+```
+
+## Environment Variables
+
+All configuration options can be set using environment variables with the `FRONTIER_SERVICE_` prefix:
+
+```bash
+export FRONTIER_SERVICE_APP_PORT=8000
+export FRONTIER_SERVICE_DB_URL="postgres://user:pass@localhost:5432/frontier"
+```
+
+## Core Configuration
+
+### Version
+
+<ParamField path="version" type="integer" default="1">
+  Configuration file version number. Used for backward compatibility.
+</ParamField>
+
+### Logging
+
+<ParamField path="log.level" type="string" default="info">
+  Logging level for the application.
+  
+  **Options:** `debug`, `info`, `warning`, `error`, `fatal`
+</ParamField>
+
+<ParamField path="log.audit_events" type="string" default="none">
+  Controls where audit events are logged.
+  
+  **Options:**
+  - `none` - Audit events are not logged
+  - `stdout` - Log audit events to standard output
+  - `db` - Store audit events in the database
+</ParamField>
+
+<ParamField path="log.ignored_audit_events" type="array" default="[]">
+  List of audit event names to ignore from logging.
+  
+  ```yaml
+  log:
+    ignored_audit_events:
+      - "app.user.created"
+      - "app.permission.checked"
+  ```
+</ParamField>
+
+## Application Settings
+
+### Network Configuration
+
+<ParamField path="app.host" type="string" default="127.0.0.1">
+  Host address for the Frontier application to bind to.
+</ParamField>
+
+<ParamField path="app.port" type="integer" default="8000" required>
+  Port number for HTTP/REST API communication.
+</ParamField>
+
+<ParamField path="app.grpc.port" type="integer" default="8001" required>
+  Port number for gRPC communication.
+</ParamField>
+
+<ParamField path="app.grpc.max_recv_msg_size" type="integer" default="33554432">
+  Maximum message size in bytes that the gRPC server can receive (32MB default).
+</ParamField>
+
+<ParamField path="app.grpc.max_send_msg_size" type="integer" default="33554432">
+  Maximum message size in bytes that the gRPC server can send (32MB default).
+</ParamField>
+
+<ParamField path="app.connect.port" type="integer" default="8002">
+  Port number for Connect protocol communication.
+</ParamField>
+
+<ParamField path="app.metrics_port" type="integer" default="9000">
+  Port number for Prometheus metrics exposition.
+</ParamField>
+
+### TLS Configuration
+
+<ParamField path="app.grpc.tls_cert_file" type="string">
+  Path to TLS certificate file for gRPC server.
+  
+  ```yaml
+  app:
+    grpc:
+      tls_cert_file: "/etc/frontier/certs/server-cert.pem"
+      tls_key_file: "/etc/frontier/certs/server-key.pem"
+      tls_client_ca_file: "/etc/frontier/certs/ca-cert.pem"
+  ```
+</ParamField>
+
+<ParamField path="app.grpc.tls_key_file" type="string">
+  Path to TLS private key file for gRPC server.
+</ParamField>
+
+<ParamField path="app.grpc.tls_client_ca_file" type="string">
+  Path to CA certificate for client certificate verification.
+</ParamField>
+
+### Profiling & Monitoring
+
+<ParamField path="app.profiler" type="boolean" default="false">
+  Enable pprof endpoints for CPU, memory, and mutex profiling at `/debug/pprof`.
+  
+  <Warning>
+  Only enable in development or controlled environments as it exposes runtime information.
+  </Warning>
+</ParamField>
+
+### CORS Configuration
+
+<ParamField path="app.cors.allowed_origins" type="array" required="Required for Admin UI">
+  List of origins allowed for Cross-Origin Resource Sharing.
+  
+  ```yaml
+  app:
+    cors:
+      allowed_origins:
+        - "https://app.example.com"
+        - "https://admin.example.com"
+        # Use "*" to allow all origins (not recommended for production)
+  ```
+</ParamField>
+
+<ParamField path="app.cors.allowed_methods" type="array">
+  HTTP methods allowed for CORS requests.
+  
+  ```yaml
+  app:
+    cors:
+      allowed_methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+  ```
+</ParamField>
+
+<ParamField path="app.cors.allowed_headers" type="array">
+  HTTP headers allowed in CORS requests.
+  
+  ```yaml
+  app:
+    cors:
+      allowed_headers:
+        - Authorization
+        - Content-Type
+        - X-Requested-With
+  ```
+</ParamField>
+
+<ParamField path="app.cors.exposed_headers" type="array">
+  HTTP headers that browsers are allowed to access.
+  
+  ```yaml
+  app:
+    cors:
+      exposed_headers:
+        - Content-Type
+        - X-Request-Id
+  ```
+</ParamField>
+
+## Authentication Configuration
+
+### Session Management
+
+<ParamField path="app.authentication.session.hash_secret_key" type="string" required>
+  Secret key for session hash validation (must be exactly 32 characters).
+  
+  ```yaml
+  app:
+    authentication:
+      session:
+        hash_secret_key: "hash-secret-should-be-32-chars--"
+  ```
+  
+  <Warning>
+  Generate a secure random string for production. Never commit secrets to version control.
+  </Warning>
+</ParamField>
+
+<ParamField path="app.authentication.session.block_secret_key" type="string" required>
+  Secret key for session encryption (must be exactly 32 characters).
+  
+  ```yaml
+  app:
+    authentication:
+      session:
+        block_secret_key: "block-secret-should-be-32-chars-"
+  ```
+</ParamField>
+
+<ParamField path="app.authentication.session.domain" type="string">
+  Domain for session cookies. If not set, defaults to request origin host.
+</ParamField>
+
+<ParamField path="app.authentication.session.same_site" type="string" default="lax">
+  SameSite policy for session cookies.
+  
+  **Options:** `""` (empty), `lax`, `strict`, `none`
+</ParamField>
+
+<ParamField path="app.authentication.session.validity" type="duration" default="720h">
+  Session validity duration (default: 30 days).
+  
+  ```yaml
+  app:
+    authentication:
+      session:
+        validity: "168h"  # 7 days
+  ```
+</ParamField>
+
+<ParamField path="app.authentication.session.secure" type="boolean" default="false">
+  Enable secure flag for cookies (requires HTTPS).
+  
+  <Warning>
+  Set to `true` in production when using HTTPS.
+  </Warning>
+</ParamField>
+
+<ParamField path="app.authentication.session.headers" type="object">
+  Custom headers for collecting session metadata.
+  
+  ```yaml
+  app:
+    authentication:
+      session:
+        headers:
+          client_ip: "x-forwarded-for"
+          client_country: "x-frontier-country"
+          client_city: "x-frontier-city"
+          client_user_agent: "User-Agent"
+  ```
+</ParamField>
+
+### JWT Token Configuration
+
+<ParamField path="app.authentication.token.rsa_path" type="string">
+  Path to RSA private key for JWT signing. Generate using `frontier server keygen`.
+  
+  ```yaml
+  app:
+    authentication:
+      token:
+        rsa_path: "/etc/frontier/keys/rsa"
+  ```
+  
+  <Warning>
+  If not specified, JWT access tokens will be disabled.
+  </Warning>
+</ParamField>
+
+<ParamField path="app.authentication.token.rsa_base64" type="string">
+  Base64-encoded RSA private key. Alternative to `rsa_path` for containerized deployments.
+</ParamField>
+
+<ParamField path="app.authentication.token.iss" type="string" default="http://localhost.frontier">
+  Issuer claim (iss) added to JWT tokens.
+</ParamField>
+
+<ParamField path="app.authentication.token.validity" type="duration" default="1h">
+  JWT token validity duration.
+</ParamField>
+
+<ParamField path="app.authentication.token.claims.add_org_ids" type="boolean" default="true">
+  Include user's organization IDs in JWT claims.
+</ParamField>
+
+<ParamField path="app.authentication.token.claims.add_user_email" type="boolean" default="true">
+  Include user email in JWT claims.
+</ParamField>
+
+<ParamField path="app.authentication.token.claims.add_session_id" type="boolean" default="true">
+  Include session ID in JWT claims.
+</ParamField>
+
+### Callback URLs
+
+<ParamField path="app.authentication.callback_urls" type="array" required>
+  Public-facing URLs for OAuth callback redirects and email link verification.
+  
+  ```yaml
+  app:
+    authentication:
+      callback_urls:
+        - "http://localhost:8000/v1beta1/auth/callback"
+        - "https://api.example.com/v1beta1/auth/callback"
+  ```
+  
+  The first URL is used by default. Additional URLs can be selected per-strategy using query parameters.
+</ParamField>
+
+<ParamField path="app.authentication.authorized_redirect_urls" type="array">
+  URLs where users can be redirected after successful authentication.
+  
+  ```yaml
+  app:
+    authentication:
+      authorized_redirect_urls:
+        - "https://app.example.com/dashboard"
+        - "https://app.example.com/home"
+  ```
+</ParamField>
+
+### OIDC Configuration
+
+<ParamField path="app.authentication.oidc_config" type="object">
+  OpenID Connect provider configurations. Multiple providers can be configured.
+  
+  ```yaml
+  app:
+    authentication:
+      oidc_config:
+        google:
+          client_id: "xxxxx.apps.googleusercontent.com"
+          client_secret: "xxxxx"
+          issuer_url: "https://accounts.google.com"
+          validity: "10m"
+        github:
+          client_id: "github-client-id"
+          client_secret: "github-client-secret"
+          issuer_url: "https://github.com"
+          validity: "10m"
+  ```
+</ParamField>
+
+### Email Authentication
+
+<ParamField path="app.authentication.mail_otp" type="object">
+  Configuration for one-time password (OTP) email authentication.
+  
+  ```yaml
+  app:
+    authentication:
+      mail_otp:
+        subject: "Frontier - Login Code"
+        body: "Your login code: <h2>{{.Otp}}</h2>"
+        validity: "15m"
+  ```
+  
+  The body is a Go template with `{{.Otp}}` variable.
+</ParamField>
+
+<ParamField path="app.authentication.mail_link" type="object">
+  Configuration for magic link email authentication.
+  
+  ```yaml
+  app:
+    authentication:
+      mail_link:
+        subject: "Frontier Login - One time link"
+        body: "Click to login: <a href='{{.Link}}'>Login</a>"
+        validity: "15m"
+  ```
+  
+  The body is a Go template with `{{.Link}}` variable.
+</ParamField>
+
+### Passkey Configuration
+
+<ParamField path="app.authentication.passkey.rpdisplayname" type="string">
+  Display name for the Relying Party (your application name).
+</ParamField>
+
+<ParamField path="app.authentication.passkey.rpid" type="string">
+  Relying Party ID (typically your domain without scheme and port).
+  
+  ```yaml
+  app:
+    authentication:
+      passkey:
+        rpid: "example.com"
+  ```
+</ParamField>
+
+<ParamField path="app.authentication.passkey.rporigins" type="array">
+  List of fully qualified origins permitted for passkey authentication.
+  
+  ```yaml
+  app:
+    authentication:
+      passkey:
+        rporigins:
+          - "https://example.com"
+          - "https://app.example.com"
+  ```
+</ParamField>
+
+### Test Users
+
+<ParamField path="app.authentication.test_users.enabled" type="boolean" default="false">
+  Enable test user authentication for development/testing.
+  
+  <Warning>
+  Never enable in production environments.
+  </Warning>
+</ParamField>
+
+<ParamField path="app.authentication.test_users.domain" type="string">
+  Email domain for test users (e.g., `example.com`).
+</ParamField>
+
+<ParamField path="app.authentication.test_users.otp" type="string">
+  Fixed OTP for test users.
+</ParamField>
+
+## Admin Configuration
+
+<ParamField path="app.admin.users" type="array">
+  Email addresses, UUIDs, or slugs of users to promote as platform superusers.
+  
+  ```yaml
+  app:
+    admin:
+      users:
+        - "admin@example.com"
+        - "superuser@example.com"
+  ```
+  
+  If a user exists, they're promoted to superuser. If an email is provided for a non-existent user, a new account is created.
+</ParamField>
+
+## Resources Configuration
+
+<ParamField path="app.resources_config_path" type="string">
+  Path to resources configuration files with scheme prefix.
+  
+  ```yaml
+  app:
+    resources_config_path: "file:///tmp/resources_config"
+    # Or for GCS:
+    # resources_config_path: "gs://frontier-bucket/resources_config"
+  ```
+</ParamField>
+
+<ParamField path="app.resources_config_path_secret" type="string">
+  Secret for accessing resources configuration.
+  
+  ```yaml
+  app:
+    resources_config_path_secret: "env://RESOURCE_CONFIG_SECRET"
+    # Or from file:
+    # resources_config_path_secret: "file:///opt/auth.json"
+    # Or direct value:
+    # resources_config_path_secret: "val://user:password"
+  ```
+</ParamField>
+
+## Webhook Configuration
+
+<ParamField path="app.webhook.encryption_key" type="string" required>
+  Encryption key for webhook endpoint secrets stored in database (must be 32 characters).
+  
+  ```yaml
+  app:
+    webhook:
+      encryption_key: "webhook-secret-32-characters--"
+  ```
+  
+  <Warning>
+  This encrypts the endpoint secrets, not the webhook payloads themselves.
+  </Warning>
+</ParamField>
+
+## Development Settings
+
+<ParamField path="app.identity_proxy_header" type="string">
+  HTTP header name containing user's email for identity proxying.
+  
+  ```yaml
+  app:
+    identity_proxy_header: "X-Frontier-Email"
+  ```
+  
+  <Warning>
+  **CRITICAL:** This bypasses ALL authorization checks. NEVER use in production.
+  </Warning>
+</ParamField>
+
+## Admin UI Configuration
+
+<ParamField path="ui.port" type="integer" default="8100">
+  Port for the Admin UI web interface.
+</ParamField>
+
+<ParamField path="ui.title" type="string" default="Frontier Admin">
+  Title displayed in the browser tab.
+</ParamField>
+
+<ParamField path="ui.logo" type="string">
+  URL or path to logo image for the login page.
+</ParamField>
+
+<ParamField path="ui.app_url" type="string">
+  Base URL for showing users their full organization URL.
+</ParamField>
+
+<ParamField path="ui.token_product_id" type="string">
+  Product ID to use for adding credits in the UI.
+</ParamField>
+
+<ParamField path="ui.organization_types" type="array">
+  List of organization industry types for UI dropdowns.
+  
+  ```yaml
+  ui:
+    organization_types:
+      - "Technology"
+      - "Healthcare"
+      - "Finance"
+      - "Education"
+  ```
+</ParamField>
+
+## New Relic Integration
+
+<ParamField path="new_relic.enabled" type="boolean" default="false">
+  Enable New Relic APM integration.
+</ParamField>
+
+<ParamField path="new_relic.app_name" type="string" default="Frontier">
+  Application name in New Relic.
+</ParamField>
+
+<ParamField path="new_relic.license" type="string">
+  New Relic license key.
+</ParamField>
+
+## Complete Example
+
+<CodeGroup>
+```yaml config.yaml
+version: 1
+
+log:
+  level: info
+  audit_events: db
+  ignored_audit_events:
+    - "app.permission.checked"
+
+new_relic:
+  enabled: false
+  app_name: "Frontier"
+  license: "NEWRELIC_LICENSE_KEY"
+
+ui:
+  port: 8100
+  title: "Frontier Admin"
+  logo: "https://example.com/logo.png"
+  app_url: "https://app.example.com"
+  organization_types:
+    - "Technology"
+    - "Healthcare"
+
+app:
+  host: "0.0.0.0"
+  port: 8000
+  grpc:
+    port: 8001
+    max_recv_msg_size: 33554432
+    max_send_msg_size: 33554432
+  connect:
+    port: 8002
+  metrics_port: 9000
+  profiler: false
+  
+  cors:
+    allowed_origins:
+      - "https://app.example.com"
+    allowed_methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+    allowed_headers:
+      - Authorization
+      - Content-Type
+    exposed_headers:
+      - Content-Type
+  
+  authentication:
+    callback_urls:
+      - "https://api.example.com/v1beta1/auth/callback"
+    authorized_redirect_urls:
+      - "https://app.example.com/dashboard"
+    
+    session:
+      hash_secret_key: "hash-secret-should-be-32-chars--"
+      block_secret_key: "block-secret-should-be-32-chars-"
+      domain: "example.com"
+      same_site: "lax"
+      validity: "720h"
+      secure: true
+      headers:
+        client_ip: "x-forwarded-for"
+        client_country: "x-frontier-country"
+        client_city: "x-frontier-city"
+        client_user_agent: "User-Agent"
+    
+    token:
+      rsa_path: "/etc/frontier/keys/rsa"
+      iss: "https://api.example.com"
+      validity: "1h"
+      claims:
+        add_org_ids: true
+        add_user_email: true
+        add_session_id: true
+    
+    oidc_config:
+      google:
+        client_id: "xxxxx.apps.googleusercontent.com"
+        client_secret: "xxxxx"
+        issuer_url: "https://accounts.google.com"
+        validity: "10m"
+    
+    mail_otp:
+      subject: "Your Login Code"
+      body: "Use this code to login: <h2>{{.Otp}}</h2>"
+      validity: "15m"
+    
+    mail_link:
+      subject: "Your Login Link"
+      body: "Click here to login: <a href='{{.Link}}'>Login</a>"
+      validity: "15m"
+    
+    passkey:
+      rpdisplayname: "Example App"
+      rpid: "example.com"
+      rporigins:
+        - "https://example.com"
+        - "https://app.example.com"
+  
+  admin:
+    users:
+      - "admin@example.com"
+  
+  webhook:
+    encryption_key: "webhook-secret-32-characters--"
+```
+
+```bash Environment Variables
+# Core settings
+export FRONTIER_SERVICE_VERSION=1
+export FRONTIER_SERVICE_LOG_LEVEL=info
+
+# Application
+export FRONTIER_SERVICE_APP_HOST=0.0.0.0
+export FRONTIER_SERVICE_APP_PORT=8000
+export FRONTIER_SERVICE_APP_GRPC_PORT=8001
+export FRONTIER_SERVICE_APP_METRICS_PORT=9000
+
+# Authentication
+export FRONTIER_SERVICE_APP_AUTHENTICATION_SESSION_HASH_SECRET_KEY="hash-secret-should-be-32-chars--"
+export FRONTIER_SERVICE_APP_AUTHENTICATION_SESSION_BLOCK_SECRET_KEY="block-secret-should-be-32-chars-"
+export FRONTIER_SERVICE_APP_AUTHENTICATION_TOKEN_RSA_PATH="/etc/frontier/keys/rsa"
+
+# Admin users (comma-separated)
+export FRONTIER_SERVICE_APP_ADMIN_USERS="admin@example.com,superuser@example.com"
+```
+</CodeGroup>
+
+## See Also
+
+- [Database Configuration](/configuration/database)
+- [SMTP Configuration](/configuration/smtp)
+- [Billing Engine Configuration](/configuration/billing-engine)
+- [Authentication Guide](/guides/authentication)

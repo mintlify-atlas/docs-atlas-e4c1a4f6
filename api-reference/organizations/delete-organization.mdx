@@ -1,0 +1,210 @@
+---
+title: 'Delete Organization'
+openapi: 'DELETE /v1beta1/organizations/{id}'
+---
+
+Permanently delete an organization and all its associated resources. This action cannot be undone.
+
+<Warning>
+  **This is a destructive operation**. Deleting an organization will:
+  - Remove the organization and all its data
+  - Delete all projects within the organization
+  - Remove all user memberships and permissions
+  - Delete all service users and credentials
+  - Remove all billing information and invoices
+  - Clear all audit logs
+  
+  This operation is irreversible. Consider disabling the organization instead if you may need to restore it later.
+</Warning>
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The organization identifier. Can be either:
+  - Organization UUID (e.g., `9f256f86-d3c4-4a6e-b89a-1e9a23c5d78e`)
+  - Organization name/slug (e.g., `acme-corp`)
+</ParamField>
+
+## Response
+
+Returns an empty response with status code 200 on success.
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE 'https://api.frontier.example.com/v1beta1/organizations/acme-corp' \
+  -H 'Authorization: Bearer <token>'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.frontier.example.com/v1beta1/organizations/acme-corp',
+  {
+    method: 'DELETE',
+    headers: {
+      'Authorization': 'Bearer <token>'
+    }
+  }
+);
+
+if (response.ok) {
+  console.log('Organization deleted successfully');
+} else {
+  const error = await response.json();
+  console.error('Failed to delete organization:', error);
+}
+```
+
+```python Python
+import requests
+
+response = requests.delete(
+    'https://api.frontier.example.com/v1beta1/organizations/acme-corp',
+    headers={'Authorization': 'Bearer <token>'}
+)
+
+if response.ok:
+    print('Organization deleted successfully')
+else:
+    print(f'Failed to delete organization: {response.json()}')
+```
+
+```go Go
+package main
+
+import (
+    "context"
+    "fmt"
+    frontierv1beta1 "github.com/raystack/frontier/proto/v1beta1"
+)
+
+func deleteOrganization(client frontierv1beta1.FrontierServiceClient, orgID string) {
+    req := &frontierv1beta1.DeleteOrganizationRequest{
+        Id: orgID,
+    }
+    
+    _, err := client.DeleteOrganization(context.Background(), req)
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("Organization %s deleted successfully\n", orgID)
+}
+```
+
+</CodeGroup>
+
+## Response Example
+
+```json
+{}
+```
+
+A successful deletion returns an empty JSON object with HTTP status 200.
+
+## Error Responses
+
+<ResponseField name="code" type="string">
+  Error code indicating the type of error.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable error message.
+</ResponseField>
+
+### Common Errors
+
+- **401 Unauthorized**: Invalid or missing authentication token
+- **403 Forbidden**: User doesn't have permission to delete the organization
+  - Only organization owners/admins can delete organizations
+  - Some deployments may restrict deletion to super admins only
+- **404 Not Found**: Organization doesn't exist or has already been deleted
+- **500 Internal Server Error**: Server encountered an unexpected error during deletion
+
+## Deletion Process
+
+When you delete an organization, the following happens in order:
+
+1. **Validation**: Checks if the organization exists and user has permission
+2. **Cascading Deletion**:
+   - All projects and their resources are deleted
+   - All user memberships and role assignments are removed
+   - All service users and their credentials are deleted
+   - All policies and permissions are removed
+   - Billing information is archived/deleted
+3. **Organization Removal**: The organization record is permanently deleted
+4. **Audit Log**: A final audit entry is created before deletion
+
+## Alternatives to Deletion
+
+If you want to temporarily deactivate an organization instead of permanent deletion, consider:
+
+- **Disable Organization**: Use the `POST /v1beta1/organizations/{id}/disable` endpoint to disable the organization while preserving all data
+- **Change State**: Disabled organizations can be re-enabled later with `POST /v1beta1/organizations/{id}/enable`
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Before Deleting an Organization">
+    1. **Backup Important Data**: Export any data you may need later
+    2. **Notify Members**: Inform all organization members about the deletion
+    3. **Review Dependencies**: Check for any external integrations or API keys
+    4. **Cancel Billing**: Ensure billing is canceled to avoid future charges
+    5. **Consider Disabling First**: Try disabling the organization for a period before permanent deletion
+  </Accordion>
+  
+  <Accordion title="Deletion Confirmation">
+    In production applications, implement a confirmation flow:
+    
+    ```javascript
+    // Example confirmation flow
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete ${orgName}? ` +
+      'This will permanently delete all data and cannot be undone. ' +
+      'Type the organization name to confirm.'
+    );
+    
+    if (confirmDelete) {
+      const userInput = window.prompt(
+        `Type "${orgName}" to confirm deletion:`
+      );
+      
+      if (userInput === orgName) {
+        await deleteOrganization(orgId);
+      }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Handling Deletion Failures">
+    Deletion may fail if:
+    - The organization has active billing subscriptions
+    - There are locked resources or pending operations
+    - Database constraints prevent deletion
+    
+    Implement proper error handling and retry logic:
+    
+    ```python
+    import time
+    
+    def safe_delete_organization(org_id, max_retries=3):
+        for attempt in range(max_retries):
+            try:
+                response = delete_organization(org_id)
+                return response
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(2 ** attempt)  # Exponential backoff
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Notes
+
+- Organization deletion is typically restricted to owners or super admins
+- Some deployments may implement soft deletion where data is marked as deleted but retained for a period
+- The organization name becomes available for reuse after deletion
+- Any API tokens or credentials associated with the organization are immediately invalidated
+- Billing is automatically canceled upon deletion
+- Consider implementing a "grace period" in your application where users can cancel the deletion

@@ -1,0 +1,842 @@
+---
+title: React SDK
+description: Complete guide to the Frontier React SDK with components, hooks, and context providers
+---
+
+The Frontier React SDK provides a complete set of pre-built components, hooks, and utilities for building authentication, user management, and billing features into your React applications.
+
+## Installation
+
+<CodeGroup>
+```bash npm
+npm install @raystack/frontier
+```
+
+```bash yarn
+yarn add @raystack/frontier
+```
+
+```bash pnpm
+pnpm add @raystack/frontier
+```
+</CodeGroup>
+
+### Peer Dependencies
+
+The React SDK requires the following peer dependencies:
+
+```json
+{
+  "react": "^18.2.0",
+  "react-dom": "^18.2.0",
+  "@raystack/apsara": ">=0.30.0"
+}
+```
+
+## Quick Start
+
+<Steps>
+  <Step title="Wrap your app with FrontierProvider">
+    The `FrontierProvider` component provides authentication context and React Query setup:
+    
+    ```tsx
+    import { FrontierProvider } from '@raystack/frontier/react';
+    
+    function App() {
+      return (
+        <FrontierProvider
+          config={{
+            endpoint: 'http://localhost:8080',
+            connectEndpoint: '/frontier-connect',
+            redirectLogin: window.location.origin + '/login',
+            redirectSignup: window.location.origin + '/signup',
+            redirectMagicLinkVerify: window.location.origin + '/verify',
+            callbackUrl: window.location.origin + '/callback'
+          }}
+        >
+          <YourApp />
+        </FrontierProvider>
+      );
+    }
+    ```
+  </Step>
+  
+  <Step title="Use the useFrontier hook">
+    Access user data, organizations, and billing information:
+    
+    ```tsx
+    import { useFrontier } from '@raystack/frontier/react';
+    
+    function Profile() {
+      const { user, activeOrganization, isUserLoading } = useFrontier();
+      
+      if (isUserLoading) return <div>Loading...</div>;
+      if (!user) return <div>Please log in</div>;
+      
+      return (
+        <div>
+          <h1>Welcome, {user.name}</h1>
+          <p>Email: {user.email}</p>
+          <p>Organization: {activeOrganization?.name}</p>
+        </div>
+      );
+    }
+    ```
+  </Step>
+  
+  <Step title="Add authentication components">
+    Use pre-built components for sign-in and sign-up flows:
+    
+    ```tsx
+    import { SignIn, SignUp } from '@raystack/frontier/react';
+    
+    function LoginPage() {
+      return <SignIn title="Welcome back" />;
+    }
+    
+    function RegisterPage() {
+      return <SignUp title="Create your account" />;
+    }
+    ```
+  </Step>
+</Steps>
+
+## Configuration
+
+### FrontierProvider Props
+
+The `FrontierProvider` accepts the following configuration:
+
+```typescript
+interface FrontierClientOptions {
+  endpoint: string;                    // Frontier API endpoint
+  connectEndpoint?: string;            // Connect RPC endpoint (default: '/frontier-connect')
+  redirectLogin?: string;              // Login redirect URL
+  redirectSignup?: string;             // Signup redirect URL
+  redirectMagicLinkVerify?: string;    // Magic link verification URL
+  callbackUrl?: string;                // OAuth callback URL
+  dateFormat?: string;                 // Date format (default: 'DD MMM YYYY, hh:mm A')
+  shortDateFormat?: string;            // Short date format
+  billing?: {
+    supportEmail?: string;             // Billing support email
+    successUrl?: string;               // Payment success redirect
+    cancelUrl?: string;                // Payment cancel redirect
+    hideDecimals?: boolean;            // Hide decimal amounts
+    cancelAfterTrial?: boolean;        // Cancel subscription after trial
+    showPerMonthPrice?: boolean;       // Show per-month pricing
+    tokenProductId?: string;           // Token product ID
+    basePlan?: BasePlan;              // Base/free plan configuration
+  };
+  customization?: {
+    terminology?: {                     // Customize entity names
+      organization?: { singular: string; plural: string };
+      project?: { singular: string; plural: string };
+      team?: { singular: string; plural: string };
+      member?: { singular: string; plural: string };
+      user?: { singular: string; plural: string };
+      appName?: string;
+    };
+    messages?: {                       // Custom messages
+      billing?: { plan_change?: Record<string, string> };
+      general?: Record<string, string>;
+    };
+  };
+}
+```
+
+### Custom Headers
+
+Add custom headers to all API requests:
+
+```tsx
+<FrontierProvider
+  config={{...}}
+  customHeaders={{
+    'X-Custom-Header': 'value',
+    'Authorization': () => `Bearer ${getToken()}`  // Dynamic headers
+  }}
+>
+  {children}
+</FrontierProvider>
+```
+
+### Theming
+
+Customize the visual theme using Apsara's theme provider:
+
+```tsx
+<FrontierProvider
+  config={{...}}
+  theme={{
+    theme: 'dark',
+    accentColor: 'blue'
+  }}
+>
+  {children}
+</FrontierProvider>
+```
+
+## Core Hooks
+
+### useFrontier
+
+The main hook for accessing Frontier context:
+
+```tsx
+import { useFrontier } from '@raystack/frontier/react';
+
+function MyComponent() {
+  const {
+    // User data
+    user,                              // Current user object
+    isUserLoading,                     // User loading state
+    
+    // Organizations
+    organizations,                     // All user's organizations
+    activeOrganization,                // Currently selected organization
+    setActiveOrganization,             // Set active organization
+    isActiveOrganizationLoading,       // Organization loading state
+    
+    // Groups/Teams
+    groups,                            // User's groups
+    
+    // Billing
+    billingAccount,                    // Active billing account
+    isBillingAccountLoading,           // Billing account loading state
+    paymentMethod,                     // Default payment method
+    activeSubscription,                // Active subscription
+    trialSubscription,                 // Trial subscription
+    activePlan,                        // Active plan details
+    trialPlan,                         // Trial plan details
+    allPlans,                          // All available plans
+    fetchActiveSubscription,           // Refetch subscription
+    
+    // Organization details
+    organizationKyc,                   // KYC information
+    isOrganizationKycLoading,          // KYC loading state
+    billingDetails,                    // Billing details
+    
+    // Configuration
+    config,                            // Frontier configuration
+    
+    // Session metadata
+    sessionMetadata,                   // Browser, IP, location info
+  } = useFrontier();
+  
+  return <div>...</div>;
+}
+```
+
+### usePermissions
+
+Check user permissions for resources:
+
+```tsx
+import { usePermissions } from '@raystack/frontier/react';
+
+function ResourceActions({ resourceId }) {
+  const { permissions, isFetching } = usePermissions([
+    { permission: 'read', resource: resourceId },
+    { permission: 'write', resource: resourceId },
+    { permission: 'delete', resource: resourceId }
+  ]);
+  
+  return (
+    <div>
+      {permissions['read'] && <button>View</button>}
+      {permissions['write'] && <button>Edit</button>}
+      {permissions['delete'] && <button>Delete</button>}
+    </div>
+  );
+}
+```
+
+### useTokens
+
+Manage billing token balance:
+
+```tsx
+import { useTokens } from '@raystack/frontier/react';
+
+function TokenBalance() {
+  const { tokenBalance, isTokensLoading, fetchTokenBalance } = useTokens();
+  
+  return (
+    <div>
+      <p>Balance: {tokenBalance.toString()} tokens</p>
+      <button onClick={fetchTokenBalance}>Refresh</button>
+    </div>
+  );
+}
+```
+
+### useOrganizationMembers
+
+Fetch and manage organization members:
+
+```tsx
+import { useOrganizationMembers } from '@raystack/frontier/react';
+
+function MembersList() {
+  const {
+    members,           // Array of members
+    memberRoles,       // Member role mappings
+    roles,             // Available roles
+    isFetching,        // Loading state
+    refetch,           // Refetch function
+    error              // Error state
+  } = useOrganizationMembers({
+    showInvitations: true  // Include pending invitations
+  });
+  
+  return (
+    <ul>
+      {members.map(member => (
+        <li key={member.id}>
+          {member.name} - {member.email}
+          {member.invited && <span>(Pending)</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### usePreferences
+
+Access user preferences:
+
+```tsx
+import { usePreferences } from '@raystack/frontier/react';
+
+function Settings() {
+  const preferences = usePreferences();
+  
+  return <div>Timezone: {preferences.timezone}</div>;
+}
+```
+
+### useBillingPermission
+
+Check billing-related permissions:
+
+```tsx
+import { useBillingPermission } from '@raystack/frontier/react';
+
+function BillingSettings() {
+  const { canManageBilling, isLoading } = useBillingPermission();
+  
+  if (!canManageBilling) return <div>Access denied</div>;
+  
+  return <div>Billing settings...</div>;
+}
+```
+
+## Pre-built Components
+
+### Authentication Components
+
+<Tabs>
+  <Tab title="SignIn">
+    ```tsx
+    import { SignIn } from '@raystack/frontier/react';
+    
+    <SignIn
+      logo={<img src="/logo.png" />}
+      title="Welcome back"
+      excludes={['google']}  // Exclude specific OAuth providers
+      footer={true}
+    />
+    ```
+  </Tab>
+  
+  <Tab title="SignUp">
+    ```tsx
+    import { SignUp } from '@raystack/frontier/react';
+    
+    <SignUp
+      logo={<img src="/logo.png" />}
+      title="Create your account"
+      excludes={['github']}
+      footer={true}
+    />
+    ```
+  </Tab>
+  
+  <Tab title="MagicLink">
+    ```tsx
+    import { MagicLink } from '@raystack/frontier/react';
+    
+    <MagicLink
+      title="Sign in with email"
+      description="We'll send you a magic link"
+    />
+    ```
+  </Tab>
+  
+  <Tab title="MagicLinkVerify">
+    ```tsx
+    import { MagicLinkVerify } from '@raystack/frontier/react';
+    
+    <MagicLinkVerify />
+    ```
+  </Tab>
+</Tabs>
+
+### Organization Components
+
+<Tabs>
+  <Tab title="CreateOrganization">
+    ```tsx
+    import { CreateOrganization } from '@raystack/frontier/react';
+    
+    <CreateOrganization
+      title="Create a new organization"
+      description="Organizations are shared environments where teams collaborate"
+    />
+    ```
+  </Tab>
+  
+  <Tab title="OrganizationProfile">
+    ```tsx
+    import { OrganizationProfile } from '@raystack/frontier/react';
+    
+    <OrganizationProfile />
+    ```
+  </Tab>
+</Tabs>
+
+### Other Components
+
+```tsx
+import {
+  AvatarUpload,      // Avatar upload with cropping
+  Container,         // Layout container
+  Header,            // Page header
+  PageHeader,        // Common page header
+  Layout,            // Main layout wrapper
+  Subscribe,         // Subscription management
+  Updates,           // User updates/notifications
+  Window             // Modal window
+} from '@raystack/frontier/react';
+```
+
+## Connect Query Hooks
+
+Direct access to Connect Query hooks for advanced use cases:
+
+```tsx
+import {
+  useQuery,
+  useMutation,
+  useInfiniteQuery,
+  FrontierServiceQueries,
+  create
+} from '@raystack/frontier/hooks';
+import {
+  ListProjectsRequestSchema
+} from '@raystack/proton/frontier';
+
+function ProjectsList({ orgId }) {
+  const { data, isLoading } = useQuery(
+    FrontierServiceQueries.listProjects,
+    create(ListProjectsRequestSchema, { orgId })
+  );
+  
+  return (
+    <ul>
+      {data?.projects?.map(project => (
+        <li key={project.id}>{project.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Mutations
+
+```tsx
+import { useMutation, FrontierServiceQueries, create } from '@raystack/frontier/hooks';
+import { UpdateUserRequestSchema } from '@raystack/proton/frontier';
+
+function UpdateProfile() {
+  const { mutateAsync: updateUser, isPending } = useMutation(
+    FrontierServiceQueries.updateCurrentUser
+  );
+  
+  const handleUpdate = async () => {
+    await updateUser(
+      create(UpdateUserRequestSchema, {
+        body: { name: 'New Name' }
+      })
+    );
+  };
+  
+  return <button onClick={handleUpdate} disabled={isPending}>Update</button>;
+}
+```
+
+## Utilities
+
+### Timestamp Utilities
+
+Convert Protocol Buffer timestamps:
+
+```tsx
+import {
+  timestampToDate,
+  timestampToDayjs,
+  isNullTimestamp
+} from '@raystack/frontier/react';
+
+const date = timestampToDate(user.createdAt);
+const dayjs = timestampToDayjs(user.updatedAt);
+const isNull = isNullTimestamp(user.deletedAt);
+```
+
+### Terminology
+
+Access customized terminology:
+
+```tsx
+import { useTerminology } from '@raystack/frontier/react';
+
+function Header() {
+  const t = useTerminology();
+  
+  return <h1>Create a new {t.organization.singular}</h1>;
+}
+```
+
+## Advanced Usage
+
+### Custom Transport
+
+Provide a custom Connect transport:
+
+```tsx
+import { createConnectTransport } from '@connectrpc/connect-web';
+import { TransportProvider } from '@connectrpc/connect-query';
+
+const transport = createConnectTransport({
+  baseUrl: 'https://api.example.com',
+  interceptors: [/* custom interceptors */]
+});
+
+<TransportProvider transport={transport}>
+  <App />
+</TransportProvider>
+```
+
+### Query Client Configuration
+
+Access and configure the React Query client:
+
+```tsx
+import { queryClient } from '@raystack/frontier/react';
+
+// Configure default options
+queryClient.setDefaultOptions({
+  queries: {
+    staleTime: 5 * 60 * 1000,  // 5 minutes
+    retry: 3
+  }
+});
+
+// Invalidate queries
+queryClient.invalidateQueries({ queryKey: ['organizations'] });
+```
+
+### Polling
+
+Use the polling hook for real-time updates:
+
+```tsx
+import { useConnectQueryPolling } from '@raystack/frontier/react';
+import { FrontierServiceQueries } from '@raystack/frontier/hooks';
+
+function RealtimeData() {
+  const { data } = useConnectQueryPolling(
+    FrontierServiceQueries.getUser,
+    { id: 'user-123' },
+    {
+      interval: 5000,  // Poll every 5 seconds
+      enabled: true
+    }
+  );
+  
+  return <div>{data?.user?.name}</div>;
+}
+```
+
+## TypeScript Support
+
+The React SDK is fully typed. Import types from the appropriate packages:
+
+```tsx
+import type {
+  User,
+  Organization,
+  Project,
+  Subscription,
+  Plan,
+  BillingAccount,
+  PaymentMethod
+} from '@raystack/proton/frontier';
+
+import type {
+  FrontierClientOptions,
+  FrontierClientBillingOptions,
+  FrontierClientCustomizationOptions
+} from '@raystack/frontier/react';
+```
+
+## Error Handling
+
+```tsx
+import { ConnectError, Code } from '@raystack/frontier/hooks';
+
+function MyComponent() {
+  const { data, error } = useQuery(...);
+  
+  if (error) {
+    if (error instanceof ConnectError) {
+      switch (error.code) {
+        case Code.Unauthenticated:
+          return <div>Please log in</div>;
+        case Code.PermissionDenied:
+          return <div>Access denied</div>;
+        case Code.NotFound:
+          return <div>Not found</div>;
+        default:
+          return <div>Error: {error.message}</div>;
+      }
+    }
+  }
+  
+  return <div>...</div>;
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Single FrontierProvider Instance">
+    Always use a single `FrontierProvider` at the root of your application. Multiple providers will cause errors.
+    
+    ```tsx
+    // Good
+    <FrontierProvider config={{...}}>
+      <App />
+    </FrontierProvider>
+    
+    // Bad - multiple providers
+    <FrontierProvider config={{...}}>
+      <FrontierProvider config={{...}}>
+        <App />
+      </FrontierProvider>
+    </FrontierProvider>
+    ```
+  </Accordion>
+  
+  <Accordion title="Conditional Hook Usage">
+    Use the `enabled` option to conditionally execute queries:
+    
+    ```tsx
+    const { activeOrganization } = useFrontier();
+    
+    const { data } = useQuery(
+      FrontierServiceQueries.listProjects,
+      { orgId: activeOrganization?.id },
+      { enabled: !!activeOrganization?.id }  // Only run when org is selected
+    );
+    ```
+  </Accordion>
+  
+  <Accordion title="Optimistic Updates">
+    Use optimistic updates for better UX:
+    
+    ```tsx
+    const queryClient = useQueryClient();
+    const { mutateAsync } = useMutation(...);
+    
+    const handleUpdate = async (data) => {
+      // Optimistically update UI
+      queryClient.setQueryData(['user'], data);
+      
+      try {
+        await mutateAsync(data);
+      } catch (error) {
+        // Rollback on error
+        queryClient.invalidateQueries({ queryKey: ['user'] });
+      }
+    };
+    ```
+  </Accordion>
+  
+  <Accordion title="Lazy Loading">
+    Load Frontier components lazily for better performance:
+    
+    ```tsx
+    import { lazy, Suspense } from 'react';
+    
+    const SignIn = lazy(() => import('@raystack/frontier/react').then(m => ({ default: m.SignIn })));
+    
+    function LoginPage() {
+      return (
+        <Suspense fallback={<div>Loading...</div>}>
+          <SignIn />
+        </Suspense>
+      );
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Examples
+
+### Complete Authentication Flow
+
+```tsx
+import { FrontierProvider, useFrontier, SignIn } from '@raystack/frontier/react';
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+function App() {
+  return (
+    <FrontierProvider
+      config={{
+        endpoint: process.env.REACT_APP_FRONTIER_ENDPOINT,
+        redirectLogin: '/login',
+        redirectSignup: '/signup'
+      }}
+    >
+      <Router />
+    </FrontierProvider>
+  );
+}
+
+function Router() {
+  const { user, isUserLoading } = useFrontier();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      navigate('/login');
+    }
+  }, [user, isUserLoading, navigate]);
+  
+  if (isUserLoading) return <div>Loading...</div>;
+  
+  return user ? <Dashboard /> : <LoginPage />;
+}
+
+function LoginPage() {
+  return <SignIn title="Welcome to MyApp" />;
+}
+
+function Dashboard() {
+  const { user, activeOrganization } = useFrontier();
+  
+  return (
+    <div>
+      <h1>Welcome, {user?.name}</h1>
+      <p>Organization: {activeOrganization?.name}</p>
+    </div>
+  );
+}
+```
+
+### Multi-tenant Organization Switcher
+
+```tsx
+import { useFrontier } from '@raystack/frontier/react';
+
+function OrganizationSwitcher() {
+  const { organizations, activeOrganization, setActiveOrganization } = useFrontier();
+  
+  return (
+    <select
+      value={activeOrganization?.id}
+      onChange={(e) => {
+        const org = organizations.find(o => o.id === e.target.value);
+        setActiveOrganization(org);
+      }}
+    >
+      {organizations.map(org => (
+        <option key={org.id} value={org.id}>
+          {org.name}
+        </option>
+      ))}
+    </select>
+  );
+}
+```
+
+### Subscription Management
+
+```tsx
+import { useFrontier } from '@raystack/frontier/react';
+import { useMutation, FrontierServiceQueries } from '@raystack/frontier/hooks';
+
+function SubscriptionManager() {
+  const {
+    activeSubscription,
+    allPlans,
+    billingAccount
+  } = useFrontier();
+  
+  const { mutateAsync: createCheckout } = useMutation(
+    FrontierServiceQueries.createCheckout
+  );
+  
+  const handleUpgrade = async (planId: string) => {
+    const result = await createCheckout({
+      billingId: billingAccount?.id,
+      body: {
+        planId,
+        successUrl: window.location.origin + '/success',
+        cancelUrl: window.location.origin + '/cancel'
+      }
+    });
+    
+    if (result.checkoutSession?.checkoutUrl) {
+      window.location.href = result.checkoutSession.checkoutUrl;
+    }
+  };
+  
+  return (
+    <div>
+      <h2>Current Plan: {activeSubscription?.planId}</h2>
+      <div>
+        {allPlans.map(plan => (
+          <div key={plan.id}>
+            <h3>{plan.title}</h3>
+            <p>{plan.description}</p>
+            <button onClick={() => handleUpgrade(plan.id)}>
+              Upgrade
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="JavaScript SDK" icon="js" href="/sdks/javascript">
+    Learn about the core JavaScript SDK
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference">
+    Explore the complete API documentation
+  </Card>
+  <Card title="Authentication Guide" icon="lock" href="/guides/authentication">
+    Deep dive into authentication
+  </Card>
+  <Card title="Billing Guide" icon="credit-card" href="/guides/billing">
+    Set up billing and subscriptions
+  </Card>
+</CardGroup>

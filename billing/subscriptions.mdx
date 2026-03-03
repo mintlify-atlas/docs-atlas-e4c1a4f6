@@ -1,0 +1,402 @@
+---
+title: Subscriptions
+description: Manage recurring subscriptions with trials, prorations, and automatic renewals
+---
+
+## Overview
+
+Billing subscriptions enable customers to subscribe to recurring plans on Stripe through Frontier. Subscriptions support trial periods, automatic renewals, and flexible proration policies for plan changes.
+
+<Note>
+On Frontier, plans and subscriptions are not weighted and have no inherent hierarchy. There's no concept of "upgrades" or "downgrades" - all plan changes are handled through proration based on your configuration.
+</Note>
+
+## Subscription States
+
+A subscription can have multiple states throughout its lifecycle:
+
+| State | Description |
+|-------|-------------|
+| **active** | Subscription is currently active and billing |
+| **trialing** | Subscription is in the trial period, not yet billing |
+| **past_due** | Subscription payment is overdue |
+| **canceled** | Subscription has been canceled |
+
+## Creating Subscriptions
+
+Subscriptions are created through checkout sessions. Customers initiate a checkout for a specific plan, complete payment, and the subscription is automatically activated.
+
+### Create Checkout for Subscription
+
+<CodeGroup>
+```bash cURL
+curl -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/checkouts' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <token>' \
+  -d '{
+    "success_url": "https://example.com/success",
+    "cancel_url": "https://example.com/cancel",
+    "subscription_body": {
+      "plan": "starter_monthly",
+      "trial_days": 14
+    }
+  }'
+```
+
+```json Response
+{
+  "checkout_session": {
+    "id": "cs_123",
+    "checkout_url": "https://checkout.stripe.com/pay/cs_test_123",
+    "success_url": "https://example.com/success",
+    "cancel_url": "https://example.com/cancel",
+    "created_at": "2024-03-01T00:00:00Z",
+    "updated_at": "2024-03-01T00:00:00Z",
+    "expire_at": "2024-03-02T00:00:00Z"
+  }
+}
+```
+</CodeGroup>
+
+**Parameters:**
+
+- `org_id`: Organization ID
+- `billing_id`: Billing account ID
+- `subscription_body.plan`: Plan name or ID to subscribe to
+- `subscription_body.trial_days`: Number of trial days (optional, overrides plan default)
+- `success_url`: URL to redirect after successful payment
+- `cancel_url`: URL to redirect if checkout is canceled
+
+### Trial Periods
+
+Subscriptions can start with a trial period where customers get full access without being charged:
+
+```json
+{
+  "subscription_body": {
+    "plan": "starter_monthly",
+    "trial_days": 14
+  }
+}
+```
+
+<Note>
+Trial days can be set at the plan level (applies to all subscriptions) or per checkout (overrides plan default).
+</Note>
+
+## Listing Subscriptions
+
+Retrieve all subscriptions for a billing account:
+
+<CodeGroup>
+```bash cURL
+curl -X GET 'https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/subscriptions' \
+  -H 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "subscriptions": [
+    {
+      "id": "sub_123",
+      "provider_id": "sub_stripe_123",
+      "customer_id": "cus_123",
+      "plan_id": "plan_123",
+      "state": "active",
+      "metadata": {},
+      "trial_ends_at": null,
+      "current_period_start_at": "2024-03-01T00:00:00Z",
+      "current_period_end_at": "2024-04-01T00:00:00Z",
+      "canceled_at": null,
+      "ended_at": null,
+      "created_at": "2024-03-01T00:00:00Z",
+      "updated_at": "2024-03-01T00:00:00Z"
+    }
+  ]
+}
+```
+</CodeGroup>
+
+## Canceling Subscriptions
+
+Cancel a subscription to stop future billing:
+
+<CodeGroup>
+```bash cURL  
+curl -X DELETE 'https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/subscriptions/{subscription_id}' \
+  -H 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "subscription": {
+    "id": "sub_123",
+    "state": "canceled",
+    "canceled_at": "2024-03-15T00:00:00Z",
+    "ended_at": "2024-04-01T00:00:00Z"
+  }
+}
+```
+</CodeGroup>
+
+<Note>
+When canceled, subscriptions typically remain active until the end of the current billing period, then transition to canceled state.
+</Note>
+
+## Changing Plans
+
+Customers can change their subscription plan at any time. Frontier handles prorations automatically based on your configuration.
+
+### Update Subscription
+
+```bash
+curl -X PUT 'https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/subscriptions/{subscription_id}' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <token>' \
+  -d '{
+    "plan": "pro_monthly",
+    "immediate": false
+  }'
+```
+
+**Parameters:**
+
+- `plan`: New plan ID or name
+- `immediate`: If true, change takes effect immediately; if false, change occurs at next billing cycle
+
+## Configuration
+
+Frontier provides various configuration options for subscription management under the `plan_change` key:
+
+### Proration Behavior
+
+Controls how charges are calculated when a customer changes plans mid-cycle:
+
+```yaml
+billing:
+  plan_change:
+    proration_behavior: create_prorations
+```
+
+**Options:**
+
+- `create_prorations`: Create proration items for plan changes (recommended)
+- `none`: No prorations, customer pays full price for new plan
+- `always_invoice`: Always create an invoice for the proration amount
+
+### Immediate Proration
+
+Controls proration when a plan change is immediate (using `immediate: true`):
+
+```yaml
+billing:
+  plan_change:
+    immediate_proration_behavior: create_prorations
+```
+
+**Options:** Same as `proration_behavior`
+
+### Collection Method
+
+Specifies how payments are collected:
+
+```yaml
+billing:
+  plan_change:
+    collection_method: charge_automatically
+```
+
+**Options:**
+
+- `charge_automatically`: Automatically charge the customer's payment method
+- `send_invoice`: Send an invoice for the customer to pay manually
+
+## Subscription Lifecycle
+
+<Steps>
+  <Step title="Trial Period (Optional)">
+    Customer gets full access without charges during the trial period. State: `trialing`
+  </Step>
+  
+  <Step title="Active Subscription">
+    After trial ends or if no trial, subscription becomes active and billing begins. State: `active`
+  </Step>
+  
+  <Step title="Renewal">
+    Subscription automatically renews at the end of each billing period. Customer is charged for the next period.
+  </Step>
+  
+  <Step title="Plan Changes">
+    Customer can upgrade or change plans. Proration is applied based on configuration.
+  </Step>
+  
+  <Step title="Cancellation">
+    Customer or admin cancels subscription. Access continues until period end. State: `canceled`
+  </Step>
+</Steps>
+
+## Per-Seat Subscriptions
+
+For subscriptions that include products with `per_seat` behavior, Frontier automatically:
+
+1. **Counts organization members** and updates the subscription quantity
+2. **Applies seat limits** if configured in the product
+3. **Prorates charges** when users are added or removed
+
+### Example: Per-Seat Product
+
+```yaml
+products:
+  - name: team_seats
+    behavior: per_seat
+    config:
+      seat_limit: 25  # Maximum 25 users
+    prices:
+      - name: monthly
+        interval: month
+        amount: 1000  # $10 per seat per month
+        currency: usd
+
+plans:
+  - name: team_plan
+    products:
+      - name: team_seats
+```
+
+When a customer subscribes to this plan:
+- They're charged $10 per user per month
+- Charges automatically adjust when users are added/removed
+- Cannot exceed 25 users (seat_limit)
+
+<Warning>
+If an organization tries to add a user beyond the seat limit, the operation will fail with an error.
+</Warning>
+
+## Starter Credits
+
+Plans can award virtual credits when a subscription starts using the `on_start_credits` field:
+
+```yaml
+plans:
+  - name: starter_monthly
+    on_start_credits: 100  # Award 100 credits on subscription start
+    products:
+      - name: starter_access
+```
+
+Credits are automatically added to the customer's account when the subscription becomes active and can be used for pay-as-you-go features.
+
+## Data Synchronization
+
+Frontier maintains a background syncer that periodically synchronizes subscription data with Stripe to ensure consistency.
+
+### Sync Process
+
+<Steps>
+  <Step title="Fetch Subscriptions">
+    Retrieve all subscriptions for each customer from Stripe.
+  </Step>
+  
+  <Step title="Reconcile State">
+    Compare subscription state, timestamps, and plan IDs between Frontier and Stripe.
+  </Step>
+  
+  <Step title="Update Quantities">
+    For per-seat products, update subscription quantity based on current organization member count.
+  </Step>
+  
+  <Step title="Apply Credits">
+    Ensure starter credits are applied for active subscriptions with `on_start_credits` configured.
+  </Step>
+</Steps>
+
+### Synchronized Fields
+
+- **State**: active, canceled, trialing, past_due
+- **Timestamps**: canceled_at, ended_at, trial_ends_at, period start/end
+- **Plan ID**: Updates subscription plan and appends to plan history
+- **Quantity**: For per-seat subscriptions
+
+<Note>
+Synchronization is thread-safe and uses locking to prevent race conditions during updates.
+</Note>
+
+## Metadata
+
+Store custom information with subscriptions using the `metadata` field:
+
+```json
+{
+  "subscription_body": {
+    "plan": "starter_monthly",
+    "metadata": {
+      "referral_source": "partner",
+      "promo_code": "SAVE20",
+      "sales_rep": "john@example.com"
+    }
+  }
+}
+```
+
+Metadata is stored in both Frontier and Stripe, making it available for reporting and filtering.
+
+## Best Practices
+
+<Steps>
+  <Step title="Use Trials Strategically">
+    Offer trial periods to reduce friction for new customers while giving them time to experience value.
+  </Step>
+  
+  <Step title="Configure Prorations">
+    Set `proration_behavior` to `create_prorations` for fair billing when customers change plans.
+  </Step>
+  
+  <Step title="Monitor Seat Usage">
+    For per-seat products, monitor member counts and notify customers approaching seat limits.
+  </Step>
+  
+  <Step title="Award Starter Credits">
+    Use `on_start_credits` to give new subscribers credits for trying pay-as-you-go features.
+  </Step>
+  
+  <Step title="Handle Failed Payments">
+    Monitor subscriptions in `past_due` state and implement retry logic or dunning workflows.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Subscription Not Activating After Checkout
+
+Ensure Stripe webhooks are properly configured. Frontier relies on webhook events to update subscription states.
+
+### Per-Seat Quantity Not Updating
+
+Check that:
+1. Product has `per_seat` behavior configured
+2. Background syncer is running (check `refresh_interval` config)
+3. Organization member count is correctly calculated
+
+### Proration Not Applied
+
+Verify `proration_behavior` is set to `create_prorations` in your billing configuration.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Customers" icon="users" href="/billing/customers">
+    Learn about billing account management
+  </Card>
+  
+  <Card title="Entitlements" icon="shield-check" href="/billing/entitlements">
+    Check feature access for subscribers
+  </Card>
+  
+  <Card title="Credits" icon="coins" href="/billing/credits">
+    Implement pay-as-you-go with virtual credits
+  </Card>
+  
+  <Card title="Products and Plans" icon="box" href="/billing/products-and-plans">
+    Define your pricing structure
+  </Card>
+</CardGroup>

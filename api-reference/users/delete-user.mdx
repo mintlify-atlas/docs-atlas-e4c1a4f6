@@ -1,0 +1,104 @@
+---
+title: 'Delete User'
+api: 'DELETE /v1beta1/users/{id}'
+---
+
+Permanently delete a user and all associated relations from Frontier. This operation cannot be undone.
+
+## Authentication
+
+This endpoint requires authentication with appropriate permissions. Include a valid bearer token in the Authorization header.
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  User ID (UUID) of the user to delete. Must be a valid UUID format.
+</ParamField>
+
+## Response
+
+Returns an empty response with status code 200 on successful deletion.
+
+## Example Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE 'https://api.frontier.example.com/v1beta1/users/9f256f86-4a1e-4b2a-9c45-6d2c8f5a3b7e' \
+  -H 'Authorization: Bearer <token>'
+```
+
+```javascript JavaScript
+const userId = '9f256f86-4a1e-4b2a-9c45-6d2c8f5a3b7e';
+const response = await fetch(`https://api.frontier.example.com/v1beta1/users/${userId}`, {
+  method: 'DELETE',
+  headers: {
+    'Authorization': 'Bearer <token>'
+  }
+});
+
+if (response.ok) {
+  console.log('User deleted successfully');
+}
+```
+
+```python Python
+import requests
+
+user_id = '9f256f86-4a1e-4b2a-9c45-6d2c8f5a3b7e'
+response = requests.delete(
+    f'https://api.frontier.example.com/v1beta1/users/{user_id}',
+    headers={'Authorization': 'Bearer <token>'}
+)
+
+if response.status_code == 200:
+    print('User deleted successfully')
+```
+
+</CodeGroup>
+
+## Example Response
+
+```json
+{}
+```
+
+## What Gets Deleted
+
+When a user is deleted:
+
+1. The user record is permanently removed from the database
+2. All authorization relations where the user is the subject are deleted
+3. User memberships in organizations, projects, and groups are removed
+4. Any policies directly assigned to the user are removed
+
+**Note:** This is a cascade delete operation that cleans up all user-related data.
+
+## Error Codes
+
+<ResponseField name="400" type="error">
+  Bad Request - Invalid user ID format (must be a valid UUID).
+</ResponseField>
+
+<ResponseField name="401" type="error">
+  Unauthorized - Invalid or missing authentication token.
+</ResponseField>
+
+<ResponseField name="403" type="error">
+  Forbidden - Insufficient permissions to delete users.
+</ResponseField>
+
+<ResponseField name="404" type="error">
+  Not Found - User does not exist with the provided ID.
+</ResponseField>
+
+<ResponseField name="500" type="error">
+  Internal Server Error - An unexpected error occurred during deletion.
+</ResponseField>
+
+## Important Considerations
+
+- This operation is **irreversible** - deleted users cannot be recovered
+- Ensure you have proper authorization before deleting users
+- Consider disabling users instead of deleting them if you need to maintain audit trails
+- Use the [Disable User endpoint](/api-reference/users/disable-user) for temporary deactivation

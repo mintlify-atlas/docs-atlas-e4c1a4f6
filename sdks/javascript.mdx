@@ -1,0 +1,987 @@
+---
+title: JavaScript SDK
+description: Core JavaScript SDK for Frontier - use with Node.js, browsers, or any JavaScript framework
+---
+
+The Frontier JavaScript SDK provides a lightweight, type-safe client for interacting with the Frontier API. It works in both Node.js and browser environments and can be used with any JavaScript framework.
+
+## Installation
+
+<CodeGroup>
+```bash npm
+npm install @raystack/frontier
+```
+
+```bash yarn
+yarn add @raystack/frontier
+```
+
+```bash pnpm
+pnpm add @raystack/frontier
+```
+</CodeGroup>
+
+## Quick Start
+
+<Steps>
+  <Step title="Import the SDK">
+    The SDK uses Connect RPC for type-safe API communication:
+    
+    ```javascript
+    import { createConnectTransport } from '@connectrpc/connect-web';
+    import { createPromiseClient } from '@connectrpc/connect';
+    import { FrontierService } from '@raystack/proton/frontier';
+    ```
+  </Step>
+  
+  <Step title="Create a transport">
+    Configure the transport with your Frontier endpoint:
+    
+    ```javascript
+    const transport = createConnectTransport({
+      baseUrl: 'https://your-frontier-instance.com/frontier-connect',
+      credentials: 'include'  // Important for cookie-based auth
+    });
+    ```
+  </Step>
+  
+  <Step title="Create a client">
+    Initialize the Frontier service client:
+    
+    ```javascript
+    const client = createPromiseClient(FrontierService, transport);
+    ```
+  </Step>
+  
+  <Step title="Make API calls">
+    Use the client to interact with Frontier:
+    
+    ```javascript
+    // Get current user
+    const { user } = await client.getCurrentUser({});
+    console.log(user.name, user.email);
+    
+    // List organizations
+    const { organizations } = await client.listOrganizationsByCurrentUser({});
+    console.log(organizations);
+    ```
+  </Step>
+</Steps>
+
+## Core Concepts
+
+### Connect RPC
+
+Frontier uses [Connect](https://connectrpc.com/), a modern RPC framework that provides:
+
+- **Type Safety** - Full TypeScript support with generated types
+- **Protocol Buffers** - Efficient binary serialization
+- **HTTP/2** - Better performance with multiplexing
+- **Streaming** - Bidirectional streaming support
+- **Browser & Node** - Works everywhere JavaScript runs
+
+### Transport Configuration
+
+The transport handles communication with the Frontier server:
+
+```javascript
+import { createConnectTransport } from '@connectrpc/connect-web';
+
+const transport = createConnectTransport({
+  baseUrl: 'https://api.example.com/frontier-connect',
+  
+  // Include credentials for cookie-based authentication
+  credentials: 'include',
+  
+  // Custom headers
+  headers: {
+    'X-Custom-Header': 'value'
+  },
+  
+  // Request interceptors
+  interceptors: [{
+    request: async (next, req) => {
+      // Add auth token
+      req.header.set('Authorization', `Bearer ${getToken()}`);
+      return next(req);
+    },
+    response: async (next, res) => {
+      // Handle response
+      return next(res);
+    }
+  }],
+  
+  // Timeout in milliseconds
+  defaultTimeoutMs: 30000
+});
+```
+
+### Creating Protocol Buffer Messages
+
+Use the `create` function to build request messages:
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import {
+  ListProjectsRequestSchema,
+  CreateProjectRequestSchema
+} from '@raystack/proton/frontier';
+
+// Create a list request
+const listRequest = create(ListProjectsRequestSchema, {
+  orgId: 'org_123'
+});
+
+// Create a project
+const createRequest = create(CreateProjectRequestSchema, {
+  body: {
+    name: 'My Project',
+    title: 'My Project Title',
+    orgId: 'org_123'
+  }
+});
+```
+
+## Authentication
+
+### Session-based Authentication
+
+Frontier uses cookie-based sessions. Ensure your transport includes credentials:
+
+```javascript
+const transport = createConnectTransport({
+  baseUrl: 'https://api.example.com',
+  credentials: 'include'  // Required for cookies
+});
+```
+
+### Magic Link Authentication
+
+<Steps>
+  <Step title="Request magic link">
+    ```javascript
+    await client.createMetaSchemaRequest({
+      email: 'user@example.com',
+      callbackUrl: 'https://yourapp.com/verify'
+    });
+    // User receives email with magic link
+    ```
+  </Step>
+  
+  <Step title="Verify token">
+    ```javascript
+    // Parse token from URL query params
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    
+    // Verify the token
+    const { user } = await client.authenticateWithCallback({
+      callback_url: window.location.href
+    });
+    ```
+  </Step>
+  
+  <Step title="Access user data">
+    ```javascript
+    const { user } = await client.getCurrentUser({});
+    console.log('Logged in as:', user.email);
+    ```
+  </Step>
+</Steps>
+
+### OAuth Authentication
+
+```javascript
+// Get available auth strategies
+const { strategies } = await client.listAuthStrategies({});
+
+// Find OAuth provider
+const googleAuth = strategies.find(s => s.name === 'google');
+
+// Initiate OAuth flow
+const { endpoint } = await client.authenticate({
+  strategyName: 'google',
+  callbackUrl: 'https://yourapp.com/callback'
+});
+
+// Redirect user to OAuth provider
+window.location.href = endpoint;
+
+// After callback, user is authenticated
+const { user } = await client.getCurrentUser({});
+```
+
+### Logout
+
+```javascript
+await client.logout({});
+// User session is terminated
+```
+
+## User Management
+
+### Get Current User
+
+```javascript
+const { user } = await client.getCurrentUser({});
+
+console.log(user.id);
+console.log(user.name);
+console.log(user.email);
+console.log(user.metadata);  // Custom metadata
+```
+
+### Update User Profile
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { UpdateUserRequestSchema } from '@raystack/proton/frontier';
+
+const { user } = await client.updateCurrentUser(
+  create(UpdateUserRequestSchema, {
+    body: {
+      name: 'New Name',
+      email: 'newemail@example.com',
+      metadata: {
+        timezone: 'America/New_York',
+        language: 'en'
+      }
+    }
+  })
+);
+```
+
+### Delete User
+
+```javascript
+await client.deleteCurrentUser({});
+```
+
+## Organization Management
+
+### List Organizations
+
+```javascript
+const { organizations } = await client.listOrganizationsByCurrentUser({});
+
+organizations.forEach(org => {
+  console.log(org.id, org.name, org.slug);
+});
+```
+
+### Get Organization
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { GetOrganizationRequestSchema } from '@raystack/proton/frontier';
+
+const { organization } = await client.getOrganization(
+  create(GetOrganizationRequestSchema, {
+    id: 'org_123'
+  })
+);
+```
+
+### Create Organization
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { CreateOrganizationRequestSchema } from '@raystack/proton/frontier';
+
+const { organization } = await client.createOrganization(
+  create(CreateOrganizationRequestSchema, {
+    body: {
+      name: 'acme-corp',
+      title: 'Acme Corporation',
+      metadata: {
+        industry: 'technology'
+      }
+    }
+  })
+);
+```
+
+### Update Organization
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { UpdateOrganizationRequestSchema } from '@raystack/proton/frontier';
+
+const { organization } = await client.updateOrganization(
+  create(UpdateOrganizationRequestSchema, {
+    id: 'org_123',
+    body: {
+      name: 'acme-corp-updated',
+      title: 'Acme Corp',
+      metadata: {
+        industry: 'technology',
+        size: 'large'
+      }
+    }
+  })
+);
+```
+
+### Delete Organization
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { DeleteOrganizationRequestSchema } from '@raystack/proton/frontier';
+
+await client.deleteOrganization(
+  create(DeleteOrganizationRequestSchema, {
+    id: 'org_123'
+  })
+);
+```
+
+## Project Management
+
+### List Projects
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { ListProjectsRequestSchema } from '@raystack/proton/frontier';
+
+const { projects } = await client.listProjects(
+  create(ListProjectsRequestSchema, {
+    orgId: 'org_123'
+  })
+);
+```
+
+### Create Project
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { CreateProjectRequestSchema } from '@raystack/proton/frontier';
+
+const { project } = await client.createProject(
+  create(CreateProjectRequestSchema, {
+    body: {
+      name: 'my-project',
+      title: 'My Project',
+      orgId: 'org_123',
+      metadata: {
+        environment: 'production'
+      }
+    }
+  })
+);
+```
+
+### Update Project
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { UpdateProjectRequestSchema } from '@raystack/proton/frontier';
+
+const { project } = await client.updateProject(
+  create(UpdateProjectRequestSchema, {
+    id: 'project_123',
+    body: {
+      title: 'Updated Project Title',
+      metadata: {
+        environment: 'staging'
+      }
+    }
+  })
+);
+```
+
+## Team Management
+
+### List Organization Teams
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { ListOrganizationGroupsRequestSchema } from '@raystack/proton/frontier';
+
+const { groups } = await client.listOrganizationGroups(
+  create(ListOrganizationGroupsRequestSchema, {
+    orgId: 'org_123'
+  })
+);
+```
+
+### Create Team
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { CreateGroupRequestSchema } from '@raystack/proton/frontier';
+
+const { group } = await client.createGroup(
+  create(CreateGroupRequestSchema, {
+    body: {
+      name: 'engineering',
+      title: 'Engineering Team',
+      orgId: 'org_123',
+      metadata: {
+        department: 'engineering'
+      }
+    }
+  })
+);
+```
+
+### Add User to Team
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { AddGroupUsersRequestSchema } from '@raystack/proton/frontier';
+
+await client.addGroupUsers(
+  create(AddGroupUsersRequestSchema, {
+    id: 'group_123',
+    userIds: ['user_456', 'user_789']
+  })
+);
+```
+
+## Authorization
+
+### Check Permissions
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import {
+  CheckResourcePermissionRequestSchema
+} from '@raystack/proton/frontier';
+
+const { status } = await client.checkResourcePermission(
+  create(CheckResourcePermissionRequestSchema, {
+    resource: 'app/project:project_123',
+    permission: 'delete'
+  })
+);
+
+if (status) {
+  console.log('User has permission');
+} else {
+  console.log('Permission denied');
+}
+```
+
+### Batch Check Permissions
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import {
+  BatchCheckPermissionRequestSchema,
+  BatchCheckPermissionBodySchema
+} from '@raystack/proton/frontier';
+
+const { pairs } = await client.batchCheckPermission(
+  create(BatchCheckPermissionRequestSchema, {
+    bodies: [
+      create(BatchCheckPermissionBodySchema, {
+        resource: 'app/project:project_123',
+        permission: 'read'
+      }),
+      create(BatchCheckPermissionBodySchema, {
+        resource: 'app/project:project_123',
+        permission: 'write'
+      }),
+      create(BatchCheckPermissionBodySchema, {
+        resource: 'app/project:project_456',
+        permission: 'delete'
+      })
+    ]
+  })
+);
+
+pairs.forEach(pair => {
+  const { resource, permission } = pair.body;
+  console.log(`${permission} on ${resource}:`, pair.status);
+});
+```
+
+### List User Permissions
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { ListUserPermissionsRequestSchema } from '@raystack/proton/frontier';
+
+const { permissions } = await client.listUserPermissions(
+  create(ListUserPermissionsRequestSchema, {
+    id: 'user_123'
+  })
+);
+```
+
+## Billing & Subscriptions
+
+### List Plans
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { ListPlansRequestSchema } from '@raystack/proton/frontier';
+
+const { plans } = await client.listPlans(
+  create(ListPlansRequestSchema, {})
+);
+
+plans.forEach(plan => {
+  console.log(plan.id, plan.title, plan.description);
+  console.log('Interval:', plan.interval);
+  console.log('Prices:', plan.prices);
+});
+```
+
+### Get Billing Account
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { GetBillingAccountRequestSchema } from '@raystack/proton/frontier';
+
+const { billingAccount, paymentMethods, billingDetails } = 
+  await client.getBillingAccount(
+    create(GetBillingAccountRequestSchema, {
+      id: 'billing_123',
+      withPaymentMethods: true,
+      withBillingDetails: true
+    })
+  );
+```
+
+### List Subscriptions
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { ListSubscriptionsRequestSchema } from '@raystack/proton/frontier';
+
+const { subscriptions } = await client.listSubscriptions(
+  create(ListSubscriptionsRequestSchema, {
+    orgId: 'org_123'
+  })
+);
+
+subscriptions.forEach(sub => {
+  console.log('Plan:', sub.planId);
+  console.log('Status:', sub.state);
+  console.log('Trial end:', sub.trialEndsAt);
+});
+```
+
+### Create Checkout Session
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { CreateCheckoutRequestSchema } from '@raystack/proton/frontier';
+
+const { checkoutSession } = await client.createCheckout(
+  create(CreateCheckoutRequestSchema, {
+    billingId: 'billing_123',
+    body: {
+      planId: 'plan_456',
+      successUrl: 'https://yourapp.com/success',
+      cancelUrl: 'https://yourapp.com/cancel'
+    }
+  })
+);
+
+// Redirect to checkout
+if (checkoutSession.checkoutUrl) {
+  window.location.href = checkoutSession.checkoutUrl;
+}
+```
+
+### Cancel Subscription
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { CancelSubscriptionRequestSchema } from '@raystack/proton/frontier';
+
+await client.cancelSubscription(
+  create(CancelSubscriptionRequestSchema, {
+    id: 'subscription_123',
+    immediate: false  // Cancel at period end
+  })
+);
+```
+
+### Get Token Balance
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { GetBillingBalanceRequestSchema } from '@raystack/proton/frontier';
+
+const { balance } = await client.getBillingBalance(
+  create(GetBillingBalanceRequestSchema, {
+    id: 'billing_123'
+  })
+);
+
+console.log('Token balance:', balance.amount);
+```
+
+## Error Handling
+
+```javascript
+import { ConnectError, Code } from '@connectrpc/connect';
+
+try {
+  const { user } = await client.getCurrentUser({});
+} catch (error) {
+  if (error instanceof ConnectError) {
+    switch (error.code) {
+      case Code.Unauthenticated:
+        console.error('User not authenticated');
+        // Redirect to login
+        break;
+        
+      case Code.PermissionDenied:
+        console.error('Access denied');
+        break;
+        
+      case Code.NotFound:
+        console.error('Resource not found');
+        break;
+        
+      case Code.InvalidArgument:
+        console.error('Invalid request:', error.message);
+        break;
+        
+      case Code.Internal:
+        console.error('Server error:', error.message);
+        break;
+        
+      default:
+        console.error('Error:', error.code, error.message);
+    }
+    
+    // Access error details
+    console.log('Error details:', error.rawMessage);
+    console.log('Metadata:', error.metadata);
+  } else {
+    console.error('Unexpected error:', error);
+  }
+}
+```
+
+## Advanced Usage
+
+### Request Interceptors
+
+Add middleware to all requests:
+
+```javascript
+const authInterceptor = (next) => async (req) => {
+  // Add authentication token
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    req.header.set('Authorization', `Bearer ${token}`);
+  }
+  
+  // Add request ID for tracing
+  req.header.set('X-Request-ID', generateRequestId());
+  
+  return next(req);
+};
+
+const loggingInterceptor = (next) => async (req) => {
+  console.log('Request:', req.method, req.url);
+  const response = await next(req);
+  console.log('Response:', response.status);
+  return response;
+};
+
+const transport = createConnectTransport({
+  baseUrl: 'https://api.example.com',
+  interceptors: [authInterceptor, loggingInterceptor]
+});
+```
+
+### Retry Logic
+
+```javascript
+async function withRetry(fn, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      
+      // Only retry on network errors or server errors
+      if (error instanceof ConnectError) {
+        if ([Code.Unavailable, Code.Internal].includes(error.code)) {
+          await new Promise(resolve => 
+            setTimeout(resolve, Math.pow(2, i) * 1000)
+          );
+          continue;
+        }
+      }
+      throw error;
+    }
+  }
+}
+
+// Usage
+const user = await withRetry(() => client.getCurrentUser({}));
+```
+
+### Streaming
+
+Frontier supports server streaming for real-time updates:
+
+```javascript
+import { create } from '@bufbuild/protobuf';
+import { StreamEventsRequestSchema } from '@raystack/proton/frontier';
+
+const stream = client.streamEvents(
+  create(StreamEventsRequestSchema, {
+    resourceId: 'org_123'
+  })
+);
+
+for await (const event of stream) {
+  console.log('Event:', event.type, event.data);
+}
+```
+
+### Custom Timeout
+
+```javascript
+import { CallOptions } from '@connectrpc/connect';
+
+const options: CallOptions = {
+  timeoutMs: 10000  // 10 second timeout
+};
+
+const { user } = await client.getCurrentUser({}, options);
+```
+
+## TypeScript Support
+
+The SDK is fully typed with TypeScript:
+
+```typescript
+import type {
+  User,
+  Organization,
+  Project,
+  Subscription,
+  Plan,
+  BillingAccount
+} from '@raystack/proton/frontier';
+
+import { createConnectTransport } from '@connectrpc/connect-web';
+import { createPromiseClient, PromiseClient } from '@connectrpc/connect';
+import { FrontierService } from '@raystack/proton/frontier';
+
+const transport = createConnectTransport({
+  baseUrl: 'https://api.example.com'
+});
+
+const client: PromiseClient<typeof FrontierService> = 
+  createPromiseClient(FrontierService, transport);
+
+// All methods are fully typed
+const { user }: { user?: User } = await client.getCurrentUser({});
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Reuse Client Instances">
+    Create a single client instance and reuse it throughout your application:
+    
+    ```javascript
+    // client.js
+    import { createConnectTransport } from '@connectrpc/connect-web';
+    import { createPromiseClient } from '@connectrpc/connect';
+    import { FrontierService } from '@raystack/proton/frontier';
+    
+    const transport = createConnectTransport({
+      baseUrl: process.env.FRONTIER_ENDPOINT,
+      credentials: 'include'
+    });
+    
+    export const frontierClient = createPromiseClient(FrontierService, transport);
+    
+    // Use in other files
+    import { frontierClient } from './client';
+    const { user } = await frontierClient.getCurrentUser({});
+    ```
+  </Accordion>
+  
+  <Accordion title="Handle Errors Gracefully">
+    Always wrap API calls in try-catch blocks:
+    
+    ```javascript
+    try {
+      const { user } = await client.getCurrentUser({});
+      return user;
+    } catch (error) {
+      if (error instanceof ConnectError) {
+        // Handle specific error codes
+        if (error.code === Code.Unauthenticated) {
+          redirectToLogin();
+        }
+      }
+      throw error;
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Use Environment Variables">
+    Store configuration in environment variables:
+    
+    ```javascript
+    const transport = createConnectTransport({
+      baseUrl: process.env.FRONTIER_ENDPOINT,
+      defaultTimeoutMs: parseInt(process.env.TIMEOUT_MS || '30000')
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Validate Inputs">
+    Validate data before sending to the API:
+    
+    ```javascript
+    function isValidEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+    
+    async function createUser(email, name) {
+      if (!isValidEmail(email)) {
+        throw new Error('Invalid email address');
+      }
+      return await client.createUser({ body: { email, name } });
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Examples
+
+### Complete Node.js Example
+
+```javascript
+import { createConnectTransport } from '@connectrpc/connect-web';
+import { createPromiseClient } from '@connectrpc/connect';
+import { FrontierService } from '@raystack/proton/frontier';
+import { create } from '@bufbuild/protobuf';
+import { ConnectError, Code } from '@connectrpc/connect';
+
+// Initialize client
+const transport = createConnectTransport({
+  baseUrl: 'https://api.example.com/frontier-connect',
+  credentials: 'include'
+});
+
+const client = createPromiseClient(FrontierService, transport);
+
+// Main function
+async function main() {
+  try {
+    // Get current user
+    const { user } = await client.getCurrentUser({});
+    console.log('Logged in as:', user.email);
+    
+    // List organizations
+    const { organizations } = await client.listOrganizationsByCurrentUser({});
+    console.log('Organizations:', organizations.length);
+    
+    // Get first organization's projects
+    if (organizations.length > 0) {
+      const { projects } = await client.listProjects(
+        create(ListProjectsRequestSchema, {
+          orgId: organizations[0].id
+        })
+      );
+      console.log('Projects:', projects.length);
+    }
+  } catch (error) {
+    if (error instanceof ConnectError) {
+      if (error.code === Code.Unauthenticated) {
+        console.error('Please log in first');
+      } else {
+        console.error('API error:', error.message);
+      }
+    } else {
+      console.error('Unexpected error:', error);
+    }
+  }
+}
+
+main();
+```
+
+### Browser Example with Auth
+
+```javascript
+import { createConnectTransport } from '@connectrpc/connect-web';
+import { createPromiseClient } from '@connectrpc/connect';
+import { FrontierService } from '@raystack/proton/frontier';
+
+class FrontierAuth {
+  constructor(endpoint) {
+    const transport = createConnectTransport({
+      baseUrl: endpoint,
+      credentials: 'include'
+    });
+    this.client = createPromiseClient(FrontierService, transport);
+  }
+  
+  async login(email) {
+    await this.client.createMetaSchemaRequest({
+      email,
+      callbackUrl: window.location.origin + '/verify'
+    });
+    return { success: true, message: 'Check your email for magic link' };
+  }
+  
+  async verifyMagicLink(token) {
+    const { user } = await this.client.authenticateWithCallback({
+      callback_url: window.location.href
+    });
+    return user;
+  }
+  
+  async getCurrentUser() {
+    try {
+      const { user } = await this.client.getCurrentUser({});
+      return user;
+    } catch (error) {
+      return null;
+    }
+  }
+  
+  async logout() {
+    await this.client.logout({});
+  }
+}
+
+// Usage
+const auth = new FrontierAuth('https://api.example.com');
+
+// Login
+await auth.login('user@example.com');
+
+// After magic link click
+const user = await auth.verifyMagicLink();
+
+// Check auth status
+const currentUser = await auth.getCurrentUser();
+
+// Logout
+await auth.logout();
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="React SDK" icon="react" href="/sdks/react">
+    Use pre-built React components and hooks
+  </Card>
+  <Card title="API Reference" icon="book" href="/api-reference">
+    Explore the complete API documentation
+  </Card>
+  <Card title="Authentication Guide" icon="lock" href="/guides/authentication">
+    Learn about authentication strategies
+  </Card>
+  <Card title="Proton Types" icon="code" href="https://github.com/raystack/proton">
+    View Protocol Buffer definitions
+  </Card>
+</CardGroup>

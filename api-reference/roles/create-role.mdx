@@ -1,0 +1,226 @@
+---
+title: 'Create Role'
+api: 'POST /v1beta1/roles'
+---
+
+Creates a platform-wide role that can be assigned to users across the entire Frontier instance. The role bundles multiple permissions together.
+
+## Body
+
+<ParamField body="body" type="object" required>
+  Role definition
+  
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      Unique name for the role. Must contain only alphanumeric characters and underscores.
+      
+      Example: `org_owner`, `project_admin`
+    </ParamField>
+    
+    <ParamField body="title" type="string">
+      Human-readable title for the role. Can contain UTF-8 characters.
+      
+      Example: `Organization Owner`, `Project Administrator`
+    </ParamField>
+    
+    <ParamField body="permissions" type="array" required>
+      Array of permission names or keys to include in this role.
+      
+      Permissions can be specified as:
+      - Permission slug: `app_organization_update`
+      - Permission key: `app.organization.update`
+      - Short name (if namespace matches): `update`
+      
+      Example: `["app_organization_update", "app_organization_delete"]`
+    </ParamField>
+    
+    <ParamField body="scopes" type="array">
+      Array of scope strings for filtering and categorizing roles.
+      
+      Example: `["organization", "project"]`
+    </ParamField>
+    
+    <ParamField body="metadata" type="object">
+      Additional metadata for the role. Must conform to the role metadata schema if validation is enabled.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="role" type="object">
+  The created role object
+  
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the role
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Role name
+    </ResponseField>
+    
+    <ResponseField name="title" type="string">
+      Human-readable title
+    </ResponseField>
+    
+    <ResponseField name="permissions" type="array">
+      Array of permission slugs (normalized to full slugs)
+    </ResponseField>
+    
+    <ResponseField name="scopes" type="array">
+      Array of scope strings
+    </ResponseField>
+    
+    <ResponseField name="state" type="string">
+      Role state (default: `enabled`)
+    </ResponseField>
+    
+    <ResponseField name="org_id" type="string">
+      Organization ID (platform roles use special ID)
+    </ResponseField>
+    
+    <ResponseField name="metadata" type="object">
+      Role metadata
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="string">
+      Creation timestamp
+    </ResponseField>
+    
+    <ResponseField name="updated_at" type="string">
+      Last update timestamp
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```bash cURL
+curl -X POST 'https://frontier.example.com/v1beta1/roles' \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "body": {
+      "name": "org_owner",
+      "title": "Organization Owner",
+      "permissions": [
+        "app_organization_update",
+        "app_organization_delete",
+        "app_project_create"
+      ],
+      "scopes": ["organization"],
+      "metadata": {
+        "description": "Full access to organization resources"
+      }
+    }
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://frontier.example.com/v1beta1/roles', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer <token>',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    body: {
+      name: 'org_owner',
+      title: 'Organization Owner',
+      permissions: [
+        'app_organization_update',
+        'app_organization_delete',
+        'app_project_create'
+      ],
+      scopes: ['organization'],
+      metadata: {
+        description: 'Full access to organization resources'
+      }
+    }
+  })
+});
+
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://frontier.example.com/v1beta1/roles',
+    headers={
+        'Authorization': 'Bearer <token>',
+        'Content-Type': 'application/json'
+    },
+    json={
+        'body': {
+            'name': 'org_owner',
+            'title': 'Organization Owner',
+            'permissions': [
+                'app_organization_update',
+                'app_organization_delete',
+                'app_project_create'
+            ],
+            'scopes': ['organization'],
+            'metadata': {
+                'description': 'Full access to organization resources'
+            }
+        }
+    }
+)
+
+data = response.json()
+```
+</CodeGroup>
+
+## Request Example
+
+```json
+{
+  "body": {
+    "name": "org_owner",
+    "title": "Organization Owner",
+    "permissions": [
+      "app_organization_update",
+      "app_organization_delete",
+      "app_project_create"
+    ],
+    "scopes": ["organization"],
+    "metadata": {
+      "description": "Full access to organization resources"
+    }
+  }
+}
+```
+
+## Response Example
+
+```json
+{
+  "role": {
+    "id": "9f256f86-20ad-434e-b009-6d6dadec6aa9",
+    "name": "org_owner",
+    "title": "Organization Owner",
+    "permissions": [
+      "app_organization_update",
+      "app_organization_delete",
+      "app_project_create"
+    ],
+    "scopes": ["organization"],
+    "state": "enabled",
+    "org_id": "00000000-0000-0000-0000-000000000000",
+    "metadata": {
+      "description": "Full access to organization resources"
+    },
+    "created_at": "2023-06-07T05:39:56.961Z",
+    "updated_at": "2023-06-07T05:39:56.961Z"
+  }
+}
+```
+
+## Notes
+
+- All specified permissions are verified to exist before creating the role
+- Permission names are normalized to their full slug format (e.g., `app_organization_update`)
+- The role automatically creates relations between itself and each permission for both user and service user principals
+- An audit record is created documenting the role creation

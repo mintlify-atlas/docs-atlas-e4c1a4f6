@@ -1,0 +1,121 @@
+---
+title: 'Update Policy'
+description: 'Update policy endpoint is not available'
+---
+
+## PUT /v1beta1/policies/{id}
+
+<Warning>
+  The Frontier API does not currently support updating existing policies. To modify a policy, you must delete the existing policy and create a new one with the desired configuration.
+</Warning>
+
+## Alternative Approach
+
+To effectively "update" a policy:
+
+1. **Delete the existing policy** using the [DELETE /v1beta1/policies/{id}](/api-reference/policies/delete-policy) endpoint
+2. **Create a new policy** with the updated configuration using the [POST /v1beta1/policies](/api-reference/policies/create-policy) endpoint
+
+### Example Workflow
+
+<CodeGroup>
+
+```bash cURL
+# Step 1: Delete the existing policy
+curl -X DELETE 'https://api.frontier.example.com/v1beta1/policies/550e8400-e29b-41d4-a716-446655440000' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN'
+
+# Step 2: Create a new policy with updated configuration
+curl -X POST 'https://api.frontier.example.com/v1beta1/policies' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "body": {
+      "role_id": "new-role-id",
+      "resource": "app/organization:org-123",
+      "principal": "app/user:user-456",
+      "metadata": {
+        "description": "Updated policy configuration"
+      }
+    }
+  }'
+```
+
+```javascript JavaScript
+// Step 1: Delete the existing policy
+const oldPolicyId = '550e8400-e29b-41d4-a716-446655440000';
+
+await fetch(`https://api.frontier.example.com/v1beta1/policies/${oldPolicyId}`, {
+  method: 'DELETE',
+  headers: {
+    'Authorization': 'Bearer YOUR_ACCESS_TOKEN'
+  }
+});
+
+// Step 2: Create a new policy with updated configuration
+const response = await fetch('https://api.frontier.example.com/v1beta1/policies', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_ACCESS_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    body: {
+      role_id: 'new-role-id',
+      resource: 'app/organization:org-123',
+      principal: 'app/user:user-456',
+      metadata: {
+        description: 'Updated policy configuration'
+      }
+    }
+  })
+});
+
+const newPolicy = await response.json();
+```
+
+```python Python
+import requests
+
+old_policy_id = '550e8400-e29b-41d4-a716-446655440000'
+headers = {'Authorization': 'Bearer YOUR_ACCESS_TOKEN'}
+
+# Step 1: Delete the existing policy
+requests.delete(
+    f'https://api.frontier.example.com/v1beta1/policies/{old_policy_id}',
+    headers=headers
+)
+
+# Step 2: Create a new policy with updated configuration
+response = requests.post(
+    'https://api.frontier.example.com/v1beta1/policies',
+    headers={**headers, 'Content-Type': 'application/json'},
+    json={
+        'body': {
+            'role_id': 'new-role-id',
+            'resource': 'app/organization:org-123',
+            'principal': 'app/user:user-456',
+            'metadata': {
+                'description': 'Updated policy configuration'
+            }
+        }
+    }
+)
+
+new_policy = response.json()['policy']
+```
+
+</CodeGroup>
+
+## Important Considerations
+
+- **Timing**: There will be a brief moment between deletion and creation where the policy doesn't exist
+- **Audit Trail**: Both deletion and creation events are logged separately in the audit log
+- **Policy ID**: The new policy will have a different ID from the original
+- **Atomicity**: This is not an atomic operation - if the creation fails after deletion, you may need to handle recovery
+
+## Related Endpoints
+
+- [Delete Policy](/api-reference/policies/delete-policy) - Delete an existing policy
+- [Create Policy](/api-reference/policies/create-policy) - Create a new policy
+- [Get Policy](/api-reference/policies/get-policy) - Retrieve policy details before updating

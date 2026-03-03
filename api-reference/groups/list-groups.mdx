@@ -1,0 +1,163 @@
+---
+title: 'List Organization Groups'
+openapi: 'GET /v1beta1/organizations/{org_id}/groups'
+---
+
+Retrieve all groups within a specific organization. Groups are collections of users that can be used to manage permissions and access control within an organization.
+
+## Path Parameters
+
+<ParamField path="org_id" type="string" required>
+  The unique identifier of the organization. This can be the organization's ID or slug.
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="state" type="string">
+  Filter groups by their state. Available values:
+  - `enabled` - Only return active groups
+  - `disabled` - Only return disabled groups
+  
+  If not provided, returns groups in all states.
+</ParamField>
+
+<ParamField query="group_ids" type="array">
+  Filter to specific group IDs. Provide an array of group IDs to return only those groups.
+</ParamField>
+
+<ParamField query="with_members" type="boolean" default="false">
+  Include the list of members (users) in each group in the response.
+</ParamField>
+
+<ParamField query="with_member_count" type="boolean" default="false">
+  Include the count of members in each group in the response.
+</ParamField>
+
+## Response
+
+<ResponseField name="groups" type="array">
+  List of groups in the organization.
+  
+  <Expandable title="Group Object">
+    <ResponseField name="id" type="string">
+      Unique identifier for the group.
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Unique name of the group within the organization. Used as a URL-friendly identifier.
+    </ResponseField>
+    
+    <ResponseField name="title" type="string">
+      Display title of the group.
+    </ResponseField>
+    
+    <ResponseField name="org_id" type="string">
+      ID of the organization this group belongs to.
+    </ResponseField>
+    
+    <ResponseField name="metadata" type="object">
+      Arbitrary metadata associated with the group as key-value pairs.
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="timestamp">
+      Timestamp when the group was created.
+    </ResponseField>
+    
+    <ResponseField name="updated_at" type="timestamp">
+      Timestamp when the group was last updated.
+    </ResponseField>
+    
+    <ResponseField name="members_count" type="integer">
+      Number of members in the group (included when `with_member_count=true`).
+    </ResponseField>
+    
+    <ResponseField name="users" type="array">
+      List of user objects who are members of this group (included when `with_members=true`).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X GET 'https://frontier.example.com/v1beta1/organizations/org_123/groups' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN'
+```
+
+```bash cURL (with filters)
+curl -X GET 'https://frontier.example.com/v1beta1/organizations/org_123/groups?state=enabled&with_member_count=true' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://frontier.example.com/v1beta1/organizations/org_123/groups',
+  {
+    method: 'GET',
+    headers: {
+      'Authorization': 'Bearer YOUR_ACCESS_TOKEN'
+    }
+  }
+);
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'https://frontier.example.com/v1beta1/organizations/org_123/groups',
+    headers={'Authorization': 'Bearer YOUR_ACCESS_TOKEN'}
+)
+groups = response.json()['groups']
+```
+
+```go Go
+req, _ := http.NewRequest(
+    "GET",
+    "https://frontier.example.com/v1beta1/organizations/org_123/groups",
+    nil,
+)
+req.Header.Set("Authorization", "Bearer YOUR_ACCESS_TOKEN")
+
+client := &http.Client{}
+resp, _ := client.Do(req)
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Success Response
+{
+  "groups": [
+    {
+      "id": "grp_123456789",
+      "name": "engineering-team",
+      "title": "Engineering Team",
+      "org_id": "org_123",
+      "metadata": {
+        "department": "engineering",
+        "location": "us-west"
+      },
+      "created_at": "2023-01-15T10:30:00Z",
+      "updated_at": "2023-06-20T15:45:00Z",
+      "members_count": 12
+    },
+    {
+      "id": "grp_987654321",
+      "name": "design-team",
+      "title": "Design Team",
+      "org_id": "org_123",
+      "metadata": {
+        "department": "design"
+      },
+      "created_at": "2023-02-01T09:00:00Z",
+      "updated_at": "2023-05-10T11:20:00Z",
+      "members_count": 8
+    }
+  ]
+}
+```
+
+</ResponseExample>

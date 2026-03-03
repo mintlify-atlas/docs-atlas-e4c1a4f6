@@ -1,0 +1,570 @@
+---
+title: 'Authentication'
+description: 'Learn how to authenticate with the Frontier API using Bearer tokens, API keys, and service user credentials'
+---
+
+## Overview
+
+Frontier API supports multiple authentication methods to suit different use cases:
+
+- **Bearer Tokens (JWT)** - For user-authenticated requests
+- **Service User Credentials** - For machine-to-machine authentication
+- **Session Cookies** - For browser-based applications
+- **Client Credentials** - For OAuth2-style authentication
+
+<Note>
+  Most API endpoints require authentication. Only public endpoints like `/ListAuthStrategies` and `/Authenticate` can be called without credentials.
+</Note>
+
+## Bearer Token Authentication
+
+The primary authentication method is using JWT (JSON Web Token) bearer tokens in the `Authorization` header.
+
+### Getting a Token
+
+First, authenticate using one of the supported strategies to obtain a token:
+
+<CodeGroup>
+
+```bash Client Credentials
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/AuthToken \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grant_type": "client_credentials",
+    "client_id": "YOUR_CLIENT_ID",
+    "client_secret": "YOUR_CLIENT_SECRET"
+  }'
+```
+
+```bash JWT Assertion
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/AuthToken \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    "assertion": "YOUR_JWT_ASSERTION"
+  }'
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "Bearer"
+}
+```
+
+### Using the Token
+
+Include the token in the `Authorization` header with the `Bearer` prefix:
+
+```bash
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/GetCurrentUser \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+<Note>
+  Bearer tokens are JWT tokens that include user/service user identity and optional claims like organization IDs and session IDs.
+</Note>
+
+### Token Claims
+
+Frontier JWT tokens can include custom claims:
+
+<ParamField path="sub" type="string">
+  Subject - The user or service user ID
+</ParamField>
+
+<ParamField path="org_ids" type="string">
+  Comma-separated list of organization IDs the user belongs to (if enabled)
+</ParamField>
+
+<ParamField path="session_id" type="string">
+  Session ID for user sessions (if enabled)
+</ParamField>
+
+<ParamField path="project_id" type="string">
+  Selected project context (set via `X-Project` header)
+</ParamField>
+
+<ParamField path="jti" type="string">
+  JWT ID - Unique token identifier
+</ParamField>
+
+<ParamField path="exp" type="integer">
+  Expiration time (Unix timestamp)
+</ParamField>
+
+<ParamField path="iat" type="integer">
+  Issued at time (Unix timestamp)
+</ParamField>
+
+## Service User Authentication
+
+Service users are non-human accounts designed for machine-to-machine authentication. They're ideal for:
+
+- API integrations
+- CI/CD pipelines
+- Automated scripts
+- Backend services
+
+### Creating a Service User
+
+<CodeGroup>
+
+```bash Create Service User
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/CreateServiceUser \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "org_id": "org_123abc",
+    "body": {
+      "title": "CI/CD Pipeline",
+      "metadata": {
+        "description": "Service user for automated deployments"
+      }
+    }
+  }'
+```
+
+```json Response
+{
+  "serviceuser": {
+    "id": "su_789xyz",
+    "org_id": "org_123abc",
+    "title": "CI/CD Pipeline",
+    "state": "enabled",
+    "created_at": "2024-01-15T10:00:00Z",
+    "updated_at": "2024-01-15T10:00:00Z"
+  }
+}
+```
+
+</CodeGroup>
+
+### Creating Service User Credentials
+
+Service users authenticate using key pairs. Create credentials (secret key) for the service user:
+
+<CodeGroup>
+
+```bash Create Secret Key
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/CreateServiceUserSecret \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "su_789xyz",
+    "title": "Production Key"
+  }'
+```
+
+```json Response
+{
+  "secret": {
+    "id": "key_456def",
+    "title": "Production Key",
+    "secret": "fs_secret_abcdefghijklmnopqrstuvwxyz123456"
+  }
+}
+```
+
+</CodeGroup>
+
+<Warning>
+  Store the secret securely! It's only shown once and cannot be retrieved later.
+</Warning>
+
+### Authenticating with Service User
+
+Use the client credentials grant type:
+
+```bash
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/AuthToken \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grant_type": "client_credentials",
+    "client_id": "su_789xyz",
+    "client_secret": "fs_secret_abcdefghijklmnopqrstuvwxyz123456"
+  }'
+```
+
+**Alternative: Basic Authentication**
+
+You can also use HTTP Basic Authentication with service user credentials:
+
+```bash
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/GetCurrentUser \
+  -H "Authorization: Basic $(echo -n 'su_789xyz:fs_secret_abcdefghijklmnopqrstuvwxyz123456' | base64)" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+### JWT Assertion (JWK)
+
+For enhanced security, service users can use JWT assertions with JSON Web Keys:
+
+<Steps>
+  <Step title="Create JWK">
+    Generate a JSON Web Key for the service user:
+    
+    ```bash
+    curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/CreateServiceUserJWK \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "id": "su_789xyz",
+        "title": "Production JWK",
+        "key": {
+          "kty": "RSA",
+          "n": "base64_encoded_modulus",
+          "e": "AQAB"
+        }
+      }'
+    ```
+  </Step>
+  
+  <Step title="Generate JWT">
+    Create a JWT assertion signed with your private key:
+    
+    ```json
+    {
+      "iss": "su_789xyz",
+      "sub": "su_789xyz",
+      "aud": "frontier",
+      "exp": 1234567890,
+      "iat": 1234567800
+    }
+    ```
+  </Step>
+  
+  <Step title="Exchange for Access Token">
+    Trade the JWT assertion for an access token:
+    
+    ```bash
+    curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/AuthToken \
+      -H "Content-Type: application/json" \
+      -d '{
+        "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        "assertion": "YOUR_SIGNED_JWT"
+      }'
+    ```
+  </Step>
+</Steps>
+
+## Session-Based Authentication
+
+For browser-based applications, Frontier supports session cookies.
+
+### Starting Authentication Flow
+
+Initiate authentication with a supported strategy:
+
+```bash
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/Authenticate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "strategy_name": "google",
+    "redirect_onstart": true,
+    "return_to": "https://yourapp.com/dashboard"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "endpoint": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...",
+  "state": "random_state_string"
+}
+```
+
+### Handling Callback
+
+After successful authentication, handle the callback:
+
+```bash
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/AuthCallback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "strategy_name": "google",
+    "code": "AUTH_CODE_FROM_PROVIDER",
+    "state": "random_state_string"
+  }'
+```
+
+The response includes a `Set-Cookie` header with a secure session cookie (`sid`).
+
+### Using Session Cookie
+
+Browsers automatically send the session cookie with subsequent requests:
+
+```bash
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/GetCurrentUser \
+  -H "Cookie: sid=encrypted_session_value" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+### Logging Out
+
+Invalidate the session:
+
+```bash
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/AuthLogout \
+  -H "Cookie: sid=encrypted_session_value" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+## Authentication Headers
+
+Frontier recognizes multiple authentication headers:
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token or Basic authentication credentials
+  
+  **Format:**
+  - `Bearer <jwt_token>` - For JWT tokens
+  - `Basic <base64_credentials>` - For service user credentials
+</ParamField>
+
+<ParamField header="X-User-Token" type="string">
+  Alternative header for passing JWT tokens
+</ParamField>
+
+<ParamField header="Cookie" type="string">
+  Session cookie (`sid`) for browser-based authentication
+</ParamField>
+
+<ParamField header="X-Project" type="string">
+  Optional project context to include in the access token claims
+</ParamField>
+
+<ParamField header="X-Request-ID" type="string">
+  Optional request identifier for tracing
+</ParamField>
+
+## Authentication Strategies
+
+Frontier supports multiple authentication strategies for user login:
+
+### Listing Available Strategies
+
+```bash
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/ListAuthStrategies \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+**Response:**
+
+```json
+{
+  "strategies": [
+    {"name": "google"},
+    {"name": "github"},
+    {"name": "maillink"},
+    {"name": "mailotp"},
+    {"name": "passkey"}
+  ]
+}
+```
+
+### Supported Strategies
+
+<AccordionGroup>
+  <Accordion title="OAuth2 Providers" icon="lock">
+    - **Google** (`google`) - Sign in with Google
+    - **GitHub** (`github`) - Sign in with GitHub
+    - Other OIDC providers can be configured
+  </Accordion>
+  
+  <Accordion title="Email-Based" icon="envelope">
+    - **Mail Link** (`maillink`) - Magic link sent to email
+    - **Mail OTP** (`mailotp`) - One-time password sent to email
+  </Accordion>
+  
+  <Accordion title="Passwordless" icon="fingerprint">
+    - **Passkey** (`passkey`) - WebAuthn/FIDO2 authentication
+  </Accordion>
+</AccordionGroup>
+
+## Public Key Discovery
+
+Frontier exposes its public keys for JWT verification via the JWKS endpoint:
+
+```bash
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/GetJWKs \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+**Response:**
+
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "key_id_1",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "base64_encoded_modulus...",
+      "e": "AQAB"
+    }
+  ]
+}
+```
+
+Use these keys to verify JWT tokens issued by Frontier.
+
+## Security Best Practices
+
+<Warning>
+  Follow these security guidelines to protect your API credentials:
+</Warning>
+
+### Token Security
+
+- **Store tokens securely** - Never commit tokens to version control
+- **Use environment variables** - Store credentials in env vars, not code
+- **Rotate credentials regularly** - Create new service user keys periodically
+- **Use short-lived tokens** - JWT tokens have expiration times
+- **Implement token refresh** - Obtain new tokens before expiration
+
+### Service User Management
+
+- **Principle of least privilege** - Grant minimal required permissions
+- **One service user per integration** - Don't share credentials across services
+- **Monitor usage** - Track API calls made by service users
+- **Delete unused credentials** - Remove old or compromised keys
+
+### HTTPS Requirements
+
+- **Always use HTTPS** - Never send credentials over unencrypted connections
+- **Verify SSL certificates** - Ensure valid certificates in production
+- **Use secure session cookies** - Enable `Secure` and `HttpOnly` flags
+
+### Session Configuration
+
+For session-based auth, configure these settings:
+
+```yaml
+authentication:
+  session:
+    domain: ".yourapp.com"
+    secure: true
+    same_site: "lax"
+    validity: "720h"  # 30 days
+    hash_secret_key: "32-character-secret-key-here!!"
+    block_secret_key: "32-character-secret-key-too!!"
+```
+
+<Note>
+  Both `hash_secret_key` and `block_secret_key` must be exactly 32 characters long.
+</Note>
+
+## Troubleshooting
+
+### Common Authentication Errors
+
+<AccordionGroup>
+  <Accordion title="401 Unauthenticated">
+    **Error:** `{"code": "unauthenticated", "message": "not authenticated"}`
+    
+    **Causes:**
+    - Missing `Authorization` header
+    - Invalid or expired token
+    - Malformed bearer token format
+    
+    **Solutions:**
+    - Verify the token is included in the request
+    - Check token expiration time (`exp` claim)
+    - Ensure proper `Bearer ` prefix
+    - Request a new token if expired
+  </Accordion>
+  
+  <Accordion title="403 Permission Denied">
+    **Error:** `{"code": "permission_denied", "message": "not authorized"}`
+    
+    **Causes:**
+    - Insufficient permissions for the operation
+    - Organization or project access denied
+    - Disabled user or service user
+    
+    **Solutions:**
+    - Verify user/service user has required roles
+    - Check resource ownership and permissions
+    - Ensure user/service user is enabled
+  </Accordion>
+  
+  <Accordion title="404 User Not Found">
+    **Error:** `{"code": "not_found", "message": "user doesn't exist"}`
+    
+    **Causes:**
+    - Invalid user ID in token claims
+    - Deleted user account
+    - Service user not found
+    
+    **Solutions:**
+    - Verify the user/service user still exists
+    - Check for typos in client credentials
+    - Request a fresh token after user creation
+  </Accordion>
+  
+  <Accordion title="Service User Authentication Fails">
+    **Causes:**
+    - Incorrect client ID or secret
+    - Deleted or expired credentials
+    - Service user disabled
+    
+    **Solutions:**
+    - Double-check client_id and client_secret
+    - Verify credentials haven't been deleted
+    - Ensure service user state is "enabled"
+    - Create new credentials if compromised
+  </Accordion>
+</AccordionGroup>
+
+### Testing Authentication
+
+Verify your authentication setup:
+
+<CodeGroup>
+
+```bash Test Token
+# Get current user to verify token
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/GetCurrentUser \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}' \
+  -v
+```
+
+```bash Inspect Token
+# Decode JWT (do not use with sensitive tokens in production)
+echo "YOUR_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq .
+```
+
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Overview" icon="book" href="/api-reference/overview">
+    Learn about API structure and response formats
+  </Card>
+  <Card title="API Endpoints" icon="code" href="/api-reference/endpoint">
+    Explore available API endpoints
+  </Card>
+  <Card title="Service Users" icon="robot" href="/concepts/service-users">
+    Deep dive into service user management
+  </Card>
+  <Card title="Permissions" icon="shield" href="/concepts/permissions">
+    Understand Frontier's permission system
+  </Card>
+</CardGroup>

@@ -1,0 +1,394 @@
+---
+title: Permission Management
+description: Creating, managing, and checking permissions in Frontier
+---
+
+Permissions determine what operations are allowed on a resource. In Frontier, permissions are represented as `service.resource.verb` (e.g., `app.organization.update`).
+
+## Permission Structure
+
+Permissions typically correspond one-to-one with API methods. To call an API, the user must have the associated permission.
+
+<CodeGroup>
+```go Permission Model
+type Permission struct {
+    ID          string
+    Name        string            // e.g., "update"
+    Slug        string            // e.g., "app_organization_update"
+    NamespaceID string            // e.g., "app/organization"
+    Metadata    map[string]any
+    CreatedAt   time.Time
+    UpdatedAt   time.Time
+}
+```
+
+```json Example Permission
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "update",
+  "slug": "app_organization_update",
+  "namespace": "app/organization",
+  "metadata": {
+    "description": "Allows updating organization details"
+  },
+  "createdAt": "2023-06-07T05:39:56.941Z",
+  "updatedAt": "2023-06-07T05:39:56.941Z"
+}
+```
+</CodeGroup>
+
+<Note>
+You don't grant permissions to users directly. Instead, you assign roles containing the appropriate permissions to users via policies.
+</Note>
+
+## Namespaces
+
+A namespace is a logical container that organizes related permissions and resources. It provides:
+
+- **Organization**: Groups related entities together
+- **Scope**: Defines the boundary of authorization
+- **Granularity**: Enables fine-grained access control
+
+### Example Namespaces
+
+- `app/organization` - Organization management permissions
+- `app/project` - Project-level permissions  
+- `app/group` - Group management permissions
+- `potato/cart` - Custom shopping cart permissions
+- `compute/instance` - Compute instance permissions
+
+## Predefined Permissions
+
+Frontier includes predefined permissions for managing core resources.
+
+### Organization Permissions
+
+| Permission | Description |
+|------------|-------------|
+| `app.organization.administer` | Full administrative access to the organization |
+| `app.organization.delete` | Delete the organization |
+| `app.organization.update` | Modify organization details |
+| `app.organization.get` | View organization information |
+| `app.organization.rolemanage` | Manage roles within the organization |
+| `app.organization.policymanage` | Manage access control policies |
+| `app.organization.projectlist` | List projects in the organization |
+| `app.organization.grouplist` | List groups in the organization |
+| `app.organization.invitationlist` | List user invitations |
+| `app.organization.projectcreate` | Create new projects |
+| `app.organization.groupcreate` | Create new groups |
+| `app.organization.invitationcreate` | Create new invitations |
+| `app.organization.serviceusermanage` | Manage service users |
+| `app.organization.billingmanage` | Manage billing and purchases |
+| `app.organization.billingview` | View billing information |
+
+<Note>
+Organization-level permissions cascade to projects, groups, and resources within that organization due to hierarchical inheritance.
+</Note>
+
+### Project Permissions
+
+| Permission | Description |
+|------------|-------------|
+| `app.project.administer` | Full administrative access to the project |
+| `app.project.delete` | Delete the project |
+| `app.project.update` | Modify project details |
+| `app.project.get` | View project information |
+| `app.project.policymanage` | Manage project access policies |
+| `app.project.resourcelist` | List resources in the project |
+
+### Group Permissions
+
+| Permission | Description |
+|------------|-------------|
+| `app.group.administer` | Full administrative access to the group |
+| `app.group.delete` | Delete the group |
+| `app.group.update` | Modify group details |
+| `app.group.get` | View group information |
+
+### Permission Hierarchy
+
+Higher-level permissions include the capabilities of lower-level ones:
+
+```
+administer > delete > update > get
+```
+
+For example, `app.organization.administer` grants all other organization permissions.
+
+## Custom Permissions
+
+Frontier superusers can create custom permissions for application-specific resources.
+
+### When to Use Custom Permissions
+
+Create custom permissions when:
+- Predefined permissions don't meet your requirements
+- You need resource-specific access control
+- You're integrating external services
+- You want granular control over custom features
+
+### Creating Custom Permissions
+
+Custom permissions can be created:
+
+1. **Dynamically via API** while Frontier is running
+2. **Declaratively in config** using resource configuration files
+
+<Steps>
+  <Step title="Define Permission Requirements">
+    Identify the namespace and actions needed for your resource
+    
+    ```yaml Example: Shopping Cart Permissions
+    permissions:
+      - name: delete
+        namespace: potato/cart
+      - name: update  
+        namespace: potato/cart
+      - name: get
+        namespace: potato/cart
+    ```
+  </Step>
+  
+  <Step title="Generate Permission Slugs">
+    Frontier automatically generates slugs by combining namespace and name:
+    
+    - `delete` in `potato/cart` → `potato_cart_delete`
+    - `update` in `potato/cart` → `potato_cart_update`  
+    - `get` in `potato/cart` → `potato_cart_get`
+  </Step>
+  
+  <Step title="Create via API or Config">
+    Add permissions using the Admin API or resource configuration
+  </Step>
+  
+  <Step title="Use in Roles">
+    Reference permission slugs when creating custom roles
+  </Step>
+</Steps>
+
+### Permission Configuration File
+
+Define custom permissions in YAML:
+
+```yaml potato-cart-permissions.yaml
+permissions:
+  - name: delete
+    namespace: potato/cart
+    metadata:
+      description: "Allows deleting items from the shopping cart"
+  - name: update
+    namespace: potato/cart
+    metadata:
+      description: "Allows updating shopping cart contents"
+  - name: get
+    namespace: potato/cart
+    metadata:
+      description: "Allows viewing shopping cart details"
+```
+
+Load in Frontier config:
+
+```yaml config.yaml
+app:
+  resources:
+    - config/potato-cart-permissions.yaml
+```
+
+## Checking Permissions
+
+To verify if a user has a specific permission on a resource, use the Check API:
+
+<CodeGroup>
+```bash cURL
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/check' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+-H 'Authorization: Basic dGVzdC1jbGllbnQtaWQ6dGVzdC1zZWNyZXQ=' \
+--data-raw '{
+  "permission": "get",
+  "resource": "app/organization:acme-corp"
+}'
+```
+
+```json Request Body
+{
+  "permission": "update",
+  "resource": "app/project:92f69c3a-334b-4f25-90b8-4d4f3be6b825"
+}
+```
+
+```json Response (Authorized)
+{
+  "status": true
+}
+```
+
+```json Response (Unauthorized)
+{
+  "status": false
+}
+```
+</CodeGroup>
+
+### Resource Format
+
+The `resource` field accepts multiple formats:
+
+<CodeGroup>
+```text Using UUID
+app/organization:92f69c3a-334b-4f25-90b8-4d4f3be6b825
+app/project:550e8400-e29b-41d4-a716-446655440000
+potato/cart:123e4567-e89b-12d3-a456-426614174000
+```
+
+```text Using Name/Slug
+app/organization:acme-corp
+org:acme-corp
+project:backend-api
+```
+
+```text Aliases
+org:acme-corp              → app/organization:acme-corp
+organization:acme-corp     → app/organization:acme-corp  
+project:backend-api        → app/project:backend-api
+```
+</CodeGroup>
+
+<Note>
+User credentials are automatically extracted from the session, access token, or client ID/secret in request headers.
+</Note>
+
+## Managing Permissions via API
+
+<Warning>
+These APIs require special privileges. Use Client ID/Secret or Access Token for authorization.
+</Warning>
+
+### List Permissions
+
+Retrieve all permissions, optionally filtered by namespace:
+
+```bash
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/permissions' \
+-H 'Accept: application/json' \
+-H 'Authorization: Basic ...' 
+```
+
+Filter by namespace:
+
+```bash
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/permissions?namespace=app/organization' \
+-H 'Accept: application/json'
+```
+
+### Get Permission Details
+
+Fetch a specific permission by ID or slug:
+
+```bash
+curl -L -X GET 'http://127.0.0.1:7400/v1beta1/permissions/app_organization_update' \
+-H 'Accept: application/json'
+```
+
+### Create Custom Permission
+
+Create a new permission (superuser only):
+
+```bash
+curl -L -X POST 'http://127.0.0.1:7400/v1beta1/permissions' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json' \
+--data-raw '{
+  "name": "deploy",
+  "namespace": "compute/instance",
+  "metadata": {
+    "description": "Deploy compute instances"
+  }
+}'
+```
+
+### Update Permission
+
+Update permission metadata:
+
+```bash
+curl -L -X PUT 'http://127.0.0.1:7400/v1beta1/permissions/compute_instance_deploy' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+  "metadata": {
+    "description": "Deploy and restart compute instances"
+  }
+}'
+```
+
+### Delete Permission
+
+<Warning>
+Deleting a permission removes it from all roles and may break existing access control. Use with caution.
+</Warning>
+
+```bash
+curl -L -X DELETE 'http://127.0.0.1:7400/v1beta1/permissions/custom_permission_slug' \
+-H 'Accept: application/json'
+```
+
+## Permission Name Parsing
+
+Frontier automatically converts between different permission formats:
+
+<CodeGroup>
+```go Conversion Logic
+// All these formats resolve to the same slug
+ParsePermissionName("app.organization.update")    // → app_organization_update
+ParsePermissionName("app/organization:update")    // → app_organization_update  
+ParsePermissionName("app/organization#update")    // → app_organization_update
+ParsePermissionName("app_organization_update")    // → app_organization_update
+```
+
+```text Examples
+Input: app.project.get
+Output: app_project_get
+
+Input: potato/cart:delete
+Output: potato_cart_delete
+
+Input: compute/instance#create
+Output: compute_instance_create
+```
+</CodeGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Descriptive Names">
+    Choose permission names that clearly indicate the action (e.g., `delete`, `update`, `list`) rather than vague terms.
+  </Accordion>
+  
+  <Accordion title="Follow Namespace Conventions">
+    Use consistent namespace patterns like `service/resource` to organize permissions logically.
+  </Accordion>
+  
+  <Accordion title="Leverage Hierarchies">
+    Design permission hierarchies where higher-level permissions include lower-level ones (e.g., `administer` > `update` > `get`).
+  </Accordion>
+  
+  <Accordion title="Document Custom Permissions">
+    Add descriptive metadata to custom permissions to help administrators understand their purpose.
+  </Accordion>
+  
+  <Accordion title="Test Permission Checks">
+    Always verify permission checks work as expected before deploying to production.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Roles" icon="user-shield" href="/authorization/roles">
+    Create roles that bundle permissions together
+  </Card>
+  
+  <Card title="Policies" icon="scroll" href="/authorization/policies">
+    Bind roles to users and resources with policies
+  </Card>
+</CardGroup>

@@ -1,0 +1,599 @@
+---
+title: Session Management
+description: Understand session lifecycle, tracking, metadata, and security in Frontier
+---
+
+# Session Management
+
+Sessions in Frontier allow the system to remember that a user is authenticated without requiring them to authenticate again for every request. Sessions are created automatically after successful authentication and are stored as encrypted cookies in the user's browser.
+
+<Note>
+  Session management APIs are used internally by the Frontier SDK and are not typically called directly by client applications. The SDK automatically handles session creation, validation, tracking, and revocation.
+</Note>
+
+## What is a Session?
+
+A session represents an authenticated user's active connection to Frontier. Each session contains:
+
+- **Session ID** - Unique identifier for the session
+- **User ID** - The authenticated user
+- **Metadata** - Device and location information (browser, OS, IP address, location)
+- **Timestamps** - Created at, updated at, authenticated at, and expiration time
+- **Validity** - Whether the session is still active and not expired
+
+### Session Data Example
+
+```json
+{
+  "id": "session_abc123def456",
+  "user_id": "usr_987654321",
+  "metadata": {
+    "browser": "Chrome",
+    "operating_system": "macOS",
+    "ip_address": "203.0.113.42",
+    "city": "San Francisco",
+    "country": "United States",
+    "latitude": "37.7749",
+    "longitude": "-122.4194"
+  },
+  "created_at": "2024-01-15T10:00:00Z",
+  "updated_at": "2024-01-15T14:30:00Z",
+  "authenticated_at": "2024-01-15T10:00:00Z",
+  "expires_at": "2024-01-22T10:00:00Z",
+  "is_current": true
+}
+```
+
+## Session Lifecycle
+
+### 1. Creation
+
+Sessions are created automatically after successful authentication through any strategy (OIDC, email OTP, passkey, etc.).
+
+**What Happens:**
+- User completes authentication flow
+- Frontier creates a new session record
+- Session is encrypted and stored as an HTTP-only cookie
+- Cookie is automatically sent with all subsequent requests
+
+**Cookie Attributes:**
+```
+Set-Cookie: frontier-session=<encrypted-data>;
+  HttpOnly;
+  Secure;
+  SameSite=Lax;
+  Path=/;
+  Max-Age=604800
+```
+
+### 2. Validation
+
+On each request, Frontier validates the session to ensure it's still valid.
+
+**Validation Checks:**
+- Session exists in the database
+- Session hasn't been explicitly revoked (`deleted_at` is null)
+- Session hasn't expired (current time < `expires_at`)
+- Session cookie signature is valid
+
+**Failed Validation:**
+If validation fails, the user must authenticate again.
+
+### 3. Activity Tracking
+
+Frontier tracks when sessions are used to provide "Last Active" information.
+
+**When `updated_at` is Updated:**
+- User makes authenticated API requests
+- SDK's `useLastActiveTracker` hook pings the session (every 10 minutes)
+
+<Warning>
+  Updating `updated_at` does **NOT** extend session validity. Sessions expire based on the configured validity period from creation time, regardless of activity.
+</Warning>
+
+### 4. Expiration
+
+Sessions expire when:
+
+- **Time-based expiration** - Configured validity period elapsed (e.g., 7 days from creation)
+- **Manual revocation** - User or admin explicitly revokes the session
+- **User logout** - User initiates logout
+
+**Cleanup:**
+A cron job runs daily at midnight UTC to permanently delete sessions that have been expired or soft-deleted for 24+ hours.
+
+## Session Metadata
+
+Frontier automatically extracts and stores metadata about each session for security monitoring and user experience.
+
+### Metadata Fields
+
+| Field | Description | Example |
+|-------|-------------|----------|
+| **browser** | Web browser being used | "Chrome", "Firefox", "Safari" |
+| **operating_system** | Device operating system | "Windows", "macOS", "Linux" |
+| **ip_address** | IP address of the client | "203.0.113.42" |
+| **city** | Geographic city | "San Francisco" |
+| **country** | Geographic country | "United States" |
+| **latitude** | Geographic latitude | "37.7749" |
+| **longitude** | Geographic longitude | "-122.4194" |
+
+### Use Cases for Metadata
+
+**Security Monitoring:**
+- Detect suspicious logins from new locations
+- Alert users to unexpected access
+- Identify compromised accounts
+
+**User Experience:**
+- Show users where they're logged in
+- Display "Current device" in session list
+- Help users identify their own sessions
+
+**Audit Trails:**
+- Track where actions were performed
+- Compliance and regulatory requirements
+- Forensic analysis
+
+### HTTP Headers Used
+
+Frontier extracts session metadata from HTTP headers:
+
+| Metadata Field | Default Header | Configurable |
+|----------------|----------------|-------------|
+| IP Address | `x-forwarded-for` | Yes |
+| Country | `x-frontier-country` | Yes |
+| City | `x-frontier-city` | Yes |
+| Latitude | `x-frontier-latitude` | Yes |
+| Longitude | `x-frontier-longitude` | Yes |
+| Browser & OS | `User-Agent` | Yes |
+
+**IP Address Handling:**
+If `x-forwarded-for` contains multiple comma-separated values (common with proxies), Frontier uses the first value.
+
+**Browser & OS Parsing:**
+Frontier uses the `uap-go` library to parse the `User-Agent` header and extract browser family and OS family.
+
+### Configuring Headers
+
+Customize header names in your `config.yaml`:
+
+```yaml
+authentication:
+  session:
+    headers:
+      client_ip: "X-Forwarded-For"
+      client_country: "CloudFront-Viewer-Country"
+      client_city: "CloudFront-Viewer-City"
+      client_latitude: "CloudFront-Viewer-Latitude"
+      client_longitude: "CloudFront-Viewer-Longitude"
+      client_user_agent: "User-Agent"
+```
+
+**Common Use Cases:**
+- Using CloudFront or CDN with custom headers
+- Reverse proxy that sets different header names
+- Security requirements for custom header names
+
+<Note>
+  If a header is not present in the request, the corresponding metadata field will be empty. Frontier gracefully handles missing headers.
+</Note>
+
+## Viewing Active Sessions
+
+The Frontier SDK provides built-in UI components for users to view their active sessions.
+
+### What Users See
+
+- List of all active sessions
+- Device information (browser, OS)
+- Location information (IP, city, country)
+- Last active timestamp
+- Indicator for current session
+
+### SDK Implementation (Internal)
+
+The SDK uses the `useSessions` hook:
+
+```typescript
+import { useSessions } from '@raystack/frontier/react';
+
+function SessionsList() {
+  const { sessions, isLoading, error } = useSessions();
+  
+  if (isLoading) return <div>Loading sessions...</div>;
+  if (error) return <div>Error loading sessions</div>;
+  
+  return (
+    <div>
+      <h2>Active Sessions</h2>
+      {sessions.map(session => (
+        <div key={session.id} className="session-card">
+          <div>
+            <strong>{session.browser}</strong> on {session.operatingSystem}
+          </div>
+          <div>IP: {session.ipAddress}</div>
+          <div>Location: {session.city}, {session.country}</div>
+          <div>Last Active: {session.lastActive}</div>
+          {session.isCurrent && <span>Current Session</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### API Endpoint
+
+While the SDK handles this automatically, the underlying API is:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/users/self/sessions' \
+  --header 'Cookie: frontier-session=...'
+```
+
+**Response:**
+
+```json
+{
+  "sessions": [
+    {
+      "id": "session_abc123",
+      "user_id": "usr_123",
+      "metadata": {
+        "browser": "Chrome",
+        "operating_system": "macOS",
+        "ip_address": "203.0.113.42",
+        "city": "San Francisco",
+        "country": "United States"
+      },
+      "created_at": "2024-01-15T10:00:00Z",
+      "updated_at": "2024-01-15T14:30:00Z",
+      "expires_at": "2024-01-22T10:00:00Z"
+    }
+  ]
+}
+```
+
+## Revoking Sessions
+
+Users can revoke any of their active sessions, which immediately invalidates the session and logs out the user from that device.
+
+### When to Revoke
+
+- User suspects account compromise
+- User wants to log out from a specific device
+- User wants to clean up old sessions
+- User lost a device
+
+### SDK Implementation (Internal)
+
+```typescript
+import { useSessions } from '@raystack/frontier/react';
+
+function RevokeSessionButton({ sessionId }) {
+  const { revokeSession, isRevokingSession } = useSessions();
+  
+  const handleRevoke = async () => {
+    try {
+      await revokeSession(sessionId);
+      alert('Session revoked successfully');
+    } catch (error) {
+      alert('Failed to revoke session');
+    }
+  };
+  
+  return (
+    <button 
+      onClick={handleRevoke}
+      disabled={isRevokingSession}
+    >
+      {isRevokingSession ? 'Revoking...' : 'Revoke Session'}
+    </button>
+  );
+}
+```
+
+### API Endpoint
+
+```bash
+curl --location --request DELETE 'http://localhost:7400/v1beta1/users/self/sessions/{session_id}' \
+  --header 'Cookie: frontier-session=...'
+```
+
+<Warning>
+  Revoking a session immediately logs out the user from that device. They will need to authenticate again to regain access.
+</Warning>
+
+### Revoking Current Session (Logout)
+
+To logout from the current session:
+
+```bash
+curl --location --request POST 'http://localhost:7400/v1beta1/auth/logout' \
+  --header 'Cookie: frontier-session=...'
+```
+
+This is equivalent to revoking the current session and clears the session cookie.
+
+## Automatic Activity Tracking
+
+The Frontier React SDK automatically tracks user activity to maintain accurate "Last Active" timestamps.
+
+### How It Works
+
+The SDK's internal `useLastActiveTracker` hook:
+
+1. **Pings every 10 minutes** - Automatically calls the session ping endpoint
+2. **Updates metadata** - Refreshes browser, OS, IP, and location data
+3. **Works in background** - Continues even when browser tab is inactive
+4. **Automatic activation** - Enabled when user is logged in
+
+### Ping Flow
+
+<Steps>
+
+### SDK starts tracking
+
+When user authenticates, SDK begins 10-minute interval timer.
+
+### Ping request sent
+
+```bash
+POST /v1beta1/users/self/sessions/ping
+Cookie: frontier-session=...
+```
+
+### Session updated
+
+Frontier updates `updated_at` timestamp and metadata.
+
+### Metadata returned
+
+Updated session metadata is returned to SDK.
+
+### Context updated
+
+SDK stores metadata in `FrontierContext` for application use.
+
+</Steps>
+
+### Accessing Session Metadata
+
+You can access the current session's metadata in your application:
+
+```typescript
+import { useFrontier } from '@raystack/frontier/react';
+
+function CurrentSessionInfo() {
+  const { sessionMetadata } = useFrontier();
+  
+  if (!sessionMetadata) {
+    return <div>No active session</div>;
+  }
+  
+  return (
+    <div>
+      <h3>Current Session</h3>
+      <p>Browser: {sessionMetadata.browser}</p>
+      <p>OS: {sessionMetadata.operatingSystem}</p>
+      <p>IP: {sessionMetadata.ipAddress}</p>
+      <p>Location: {sessionMetadata.location?.city}, {sessionMetadata.location?.country}</p>
+    </div>
+  );
+}
+```
+
+<Info>
+  **Important:** Activity tracking only updates the `updated_at` timestamp. It does **NOT** extend session validity. Sessions always expire based on the configured validity period from creation time.
+</Info>
+
+## Session Configuration
+
+Configure session behavior in your `config.yaml`:
+
+```yaml
+app:
+  authentication:
+    session:
+      # Session encryption keys (must be 32 characters)
+      hash_secret_key: "hash-secret-should-be-32-chars--"
+      block_secret_key: "block-secret-should-be-32-chars-"
+      
+      # Session validity (duration from creation)
+      validity: "168h"  # 7 days
+      
+      # Cookie domain
+      domain: ".example.com"
+      
+      # Secure cookie (HTTPS only)
+      secure: true
+      
+      # SameSite policy
+      same_site: "lax"  # "strict", "lax", or "none"
+      
+      # Custom HTTP headers for metadata
+      headers:
+        client_ip: "X-Forwarded-For"
+        client_country: "X-Country"
+        client_city: "X-City"
+        client_latitude: "X-Latitude"
+        client_longitude: "X-Longitude"
+        client_user_agent: "User-Agent"
+```
+
+### Configuration Options
+
+| Option | Description | Default |
+|--------|-------------|----------|
+| `hash_secret_key` | Secret for session integrity (32 chars) | Required |
+| `block_secret_key` | Secret for session encryption (32 chars) | Required |
+| `validity` | Session lifetime from creation | `168h` (7 days) |
+| `domain` | Cookie domain | Request domain |
+| `secure` | Require HTTPS | `true` |
+| `same_site` | SameSite cookie policy | `lax` |
+
+### Generating Secret Keys
+
+Generate secure random keys:
+
+```bash
+# Using OpenSSL
+openssl rand -base64 32
+
+# Using Python
+python3 -c "import secrets; print(secrets.token_urlsafe(32)[:32])"
+
+# Using Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('base64').substring(0,32))"
+```
+
+## gRPC APIs
+
+Frontier provides gRPC APIs for session management.
+
+### User APIs
+
+Available to authenticated users for managing their own sessions:
+
+**1. ListSessions** - Get all active sessions for current user
+
+```protobuf
+rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+```
+
+**2. RevokeSession** - Revoke a specific session
+
+```protobuf
+rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+```
+
+**3. PingUserSession** - Update session activity timestamp
+
+```protobuf
+rpc PingUserSession(PingUserSessionRequest) returns (PingUserSessionResponse);
+```
+
+### Admin APIs
+
+Require admin privileges for managing any user's sessions:
+
+**1. ListUserSessions** - Get sessions for any user
+
+```protobuf
+rpc ListUserSessions(ListUserSessionsRequest) returns (ListUserSessionsResponse);
+```
+
+**2. RevokeUserSession** - Revoke any user's session
+
+```protobuf
+rpc RevokeUserSession(RevokeUserSessionRequest) returns (RevokeUserSessionResponse);
+```
+
+## Security Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Secure Cookies in Production">
+    Always enable secure cookies in production to prevent cookie theft:
+    
+    ```yaml
+    authentication:
+      session:
+        secure: true
+        same_site: "strict"
+    ```
+  </Accordion>
+
+  <Accordion title="Rotate Secret Keys Regularly">
+    Rotate session encryption keys periodically:
+    
+    1. Generate new keys
+    2. Update configuration with both old and new keys
+    3. Deploy changes
+    4. After all sessions expire, remove old keys
+  </Accordion>
+
+  <Accordion title="Monitor Session Activity">
+    Set up monitoring for:
+    - Unusual login locations
+    - Multiple concurrent sessions
+    - Failed session validations
+    - Rapid session creation
+  </Accordion>
+
+  <Accordion title="Implement Session Limits">
+    Consider limiting concurrent sessions per user:
+    
+    - Helps detect account sharing
+    - Reduces attack surface
+    - Improves security posture
+  </Accordion>
+
+  <Accordion title="Enable HTTPS Only">
+    Never transmit session cookies over HTTP:
+    
+    ```yaml
+    authentication:
+      session:
+        secure: true  # Enforces HTTPS
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+### Session Validation Failed
+
+**Symptoms:** User repeatedly logged out
+
+**Possible Causes:**
+- Session expired
+- Session revoked
+- Cookie not being sent (CORS issues)
+- Secret keys changed
+
+**Solutions:**
+- Check session expiration time
+- Verify CORS configuration
+- Ensure cookies are enabled in browser
+- Check secret key configuration
+
+### Metadata Not Being Captured
+
+**Symptoms:** Session metadata fields empty
+
+**Possible Causes:**
+- Headers not being forwarded by proxy
+- Incorrect header configuration
+- Reverse proxy configuration issue
+
+**Solutions:**
+- Verify proxy forwards required headers
+- Check header name configuration
+- Test with direct connection (bypass proxy)
+
+### Sessions Not Expiring
+
+**Symptoms:** Old sessions remain active
+
+**Possible Causes:**
+- Cron job not running
+- Database cleanup failed
+- Incorrect validity configuration
+
+**Solutions:**
+- Check cron job logs
+- Verify database connectivity
+- Review session validity configuration
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="User Authentication" icon="user" href="/authentication/users">
+    Learn about user authentication strategies
+  </Card>
+  
+  <Card title="Security" icon="shield" href="/security/overview">
+    Understand Frontier's security features
+  </Card>
+</CardGroup>

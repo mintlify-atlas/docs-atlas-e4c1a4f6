@@ -1,0 +1,217 @@
+---
+title: 'Get Group'
+openapi: 'GET /v1beta1/groups/{id}'
+---
+
+Retrieve details of a specific group by its ID.
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the group to retrieve.
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="org_id" type="string" required>
+  The organization ID that the group belongs to. Required for authorization.
+</ParamField>
+
+<ParamField query="with_members" type="boolean" default="false">
+  Include the full list of member users in the response. When set to `true`, each user object in the group will be included with complete user details.
+</ParamField>
+
+## Response
+
+<ResponseField name="group" type="object">
+  The requested group object.
+  
+  <Expandable title="Group Properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the group.
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      URL-friendly identifier of the group.
+    </ResponseField>
+    
+    <ResponseField name="title" type="string">
+      Display title of the group.
+    </ResponseField>
+    
+    <ResponseField name="org_id" type="string">
+      ID of the organization this group belongs to.
+    </ResponseField>
+    
+    <ResponseField name="metadata" type="object">
+      Arbitrary metadata associated with the group as key-value pairs.
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="timestamp">
+      Timestamp when the group was created.
+    </ResponseField>
+    
+    <ResponseField name="updated_at" type="timestamp">
+      Timestamp when the group was last updated.
+    </ResponseField>
+    
+    <ResponseField name="members_count" type="integer">
+      Total number of members in the group.
+    </ResponseField>
+    
+    <ResponseField name="users" type="array">
+      Array of user objects who are members of this group. Only included when `with_members=true`.
+      
+      <Expandable title="User Properties">
+        <ResponseField name="id" type="string">
+          User's unique identifier.
+        </ResponseField>
+        
+        <ResponseField name="email" type="string">
+          User's email address.
+        </ResponseField>
+        
+        <ResponseField name="name" type="string">
+          User's display name.
+        </ResponseField>
+        
+        <ResponseField name="title" type="string">
+          User's title or role.
+        </ResponseField>
+        
+        <ResponseField name="avatar" type="string">
+          URL to the user's avatar image.
+        </ResponseField>
+        
+        <ResponseField name="state" type="string">
+          User's current state (e.g., "enabled", "disabled").
+        </ResponseField>
+        
+        <ResponseField name="created_at" type="timestamp">
+          When the user was created.
+        </ResponseField>
+        
+        <ResponseField name="updated_at" type="timestamp">
+          When the user was last updated.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X GET 'https://frontier.example.com/v1beta1/groups/grp_123456789?org_id=org_123' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN'
+```
+
+```bash cURL (with members)
+curl -X GET 'https://frontier.example.com/v1beta1/groups/grp_123456789?org_id=org_123&with_members=true' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://frontier.example.com/v1beta1/groups/grp_123456789?org_id=org_123',
+  {
+    method: 'GET',
+    headers: {
+      'Authorization': 'Bearer YOUR_ACCESS_TOKEN'
+    }
+  }
+);
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'https://frontier.example.com/v1beta1/groups/grp_123456789',
+    params={'org_id': 'org_123'},
+    headers={'Authorization': 'Bearer YOUR_ACCESS_TOKEN'}
+)
+group = response.json()['group']
+```
+
+```go Go
+req, _ := http.NewRequest(
+    "GET",
+    "https://frontier.example.com/v1beta1/groups/grp_123456789?org_id=org_123",
+    nil,
+)
+req.Header.Set("Authorization", "Bearer YOUR_ACCESS_TOKEN")
+
+client := &http.Client{}
+resp, _ := client.Do(req)
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Success Response
+{
+  "group": {
+    "id": "grp_123456789",
+    "name": "engineering-team",
+    "title": "Engineering Team",
+    "org_id": "org_123",
+    "metadata": {
+      "department": "engineering",
+      "location": "us-west",
+      "cost_center": "1234"
+    },
+    "created_at": "2023-01-15T10:30:00Z",
+    "updated_at": "2023-06-20T15:45:00Z",
+    "members_count": 12
+  }
+}
+```
+
+```json Success Response (with members)
+{
+  "group": {
+    "id": "grp_123456789",
+    "name": "engineering-team",
+    "title": "Engineering Team",
+    "org_id": "org_123",
+    "metadata": {
+      "department": "engineering"
+    },
+    "created_at": "2023-01-15T10:30:00Z",
+    "updated_at": "2023-06-20T15:45:00Z",
+    "members_count": 2,
+    "users": [
+      {
+        "id": "usr_123",
+        "email": "alice@example.com",
+        "name": "Alice Smith",
+        "title": "Senior Engineer",
+        "state": "enabled",
+        "created_at": "2023-01-10T08:00:00Z",
+        "updated_at": "2023-06-15T12:00:00Z"
+      },
+      {
+        "id": "usr_456",
+        "email": "bob@example.com",
+        "name": "Bob Johnson",
+        "title": "Engineering Manager",
+        "state": "enabled",
+        "created_at": "2023-01-12T09:30:00Z",
+        "updated_at": "2023-06-18T14:20:00Z"
+      }
+    ]
+  }
+}
+```
+
+```json Error: Group Not Found
+{
+  "code": "not_found",
+  "message": "group not found"
+}
+```
+
+</ResponseExample>

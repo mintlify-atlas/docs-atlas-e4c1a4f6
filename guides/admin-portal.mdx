@@ -1,0 +1,742 @@
+---
+title: 'Using the Admin Portal'
+description: 'Complete guide to managing Frontier through the web-based admin interface'
+icon: 'desktop'
+---
+
+## Overview
+
+The Frontier Admin Portal provides a web-based interface for managing your Frontier deployment. It's built with React and offers a visual way to perform administrative tasks without using the API or CLI.
+
+<Note>
+The Admin Portal is included in the Frontier repository under `web/apps/admin`. It's a separate application that connects to your Frontier server via API.
+</Note>
+
+## Features
+
+The Admin Portal provides tools for:
+
+- **Organization Management**: Create, view, and manage organizations
+- **User Administration**: View users, manage roles, and assign permissions
+- **Authentication Configuration**: Set up OIDC providers and authentication methods
+- **Platform Preferences**: Configure platform-wide settings
+- **Domain Verification**: Manage and verify organization domains
+- **Audit Logs**: Monitor system activity and user actions
+- **Webhook Management**: Configure and monitor webhook endpoints
+- **Billing Overview**: View billing accounts and subscriptions (if enabled)
+
+<Warning>
+The Admin Portal requires a running Frontier server. It cannot operate standalone.
+</Warning>
+
+## Prerequisites
+
+Before setting up the Admin Portal:
+
+- ✅ Frontier server is running and accessible
+- ✅ Node.js 18+ and npm installed
+- ✅ You have a user account with admin privileges
+
+## Installation and Setup
+
+<Steps>
+  <Step title="Navigate to the admin portal directory">
+    From the Frontier repository root:
+
+    ```bash
+    cd web/apps/admin
+    ```
+  </Step>
+
+  <Step title="Create environment configuration">
+    Create a `.env` file with your Frontier server URLs:
+
+    ```bash .env
+    # Frontier HTTP API endpoint
+    FRONTIER_API_URL=http://localhost:8000
+    
+    # Frontier gRPC Connect endpoint
+    FRONTIER_CONNECTRPC_URL=http://localhost:8002
+    ```
+
+    <Tabs>
+      <Tab title="Local Development">
+        ```bash
+        FRONTIER_API_URL=http://localhost:8000
+        FRONTIER_CONNECTRPC_URL=http://localhost:8002
+        ```
+      </Tab>
+      
+      <Tab title="Production">
+        ```bash
+        FRONTIER_API_URL=https://api.your-domain.com
+        FRONTIER_CONNECTRPC_URL=https://grpc.your-domain.com
+        ```
+      </Tab>
+      
+      <Tab title="Docker Compose">
+        ```bash
+        FRONTIER_API_URL=http://frontier:8000
+        FRONTIER_CONNECTRPC_URL=http://frontier:8002
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Install dependencies">
+    ```bash
+    npm install
+    ```
+
+    This installs all required packages including:
+    - React 18+
+    - Connect-Web for gRPC communication
+    - UI component libraries
+  </Step>
+
+  <Step title="Start the development server">
+    ```bash
+    npm run dev
+    ```
+
+    The portal will start on [http://localhost:5173](http://localhost:5173)
+
+    <Note>
+    The default port is 5173 (Vite's default). You can change this in `vite.config.ts` if needed.
+    </Note>
+  </Step>
+
+  <Step title="Access the portal">
+    Open your browser to:
+    
+    ```
+    http://localhost:5173/console
+    ```
+
+    You'll be redirected to the login page.
+  </Step>
+</Steps>
+
+## First-Time Login
+
+<Steps>
+  <Step title="Navigate to the login page">
+    The Admin Portal login page shows available authentication methods based on your Frontier configuration.
+  </Step>
+
+  <Step title="Choose your authentication method">
+    <Tabs>
+      <Tab title="OIDC Provider">
+        If you've configured Google, GitHub, or Azure AD:
+        
+        1. Click **Sign in with Google** (or your provider)
+        2. Complete the authentication flow
+        3. You'll be redirected back to the portal
+      </Tab>
+      
+      <Tab title="Magic Link">
+        If email-based login is enabled:
+        
+        1. Enter your email address
+        2. Click **Send Magic Link**
+        3. Check your email for the login link
+        4. Click the link to authenticate
+      </Tab>
+      
+      <Tab title="Development Mode">
+        If `identity_proxy_header` is configured (dev only):
+        
+        The portal will automatically authenticate you using the header value.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Verify your access">
+    After logging in, you should see the Admin Portal dashboard.
+
+    If you see "Access Denied" or "Insufficient Permissions":
+    1. Ensure your user is listed in `app.admin.users` in Frontier config
+    2. Restart the Frontier server
+    3. Log in again
+  </Step>
+</Steps>
+
+## Portal Navigation
+
+The Admin Portal is organized into several main sections:
+
+### Dashboard
+
+The dashboard provides an overview of your Frontier deployment:
+
+- **System Health**: Server status and version information
+- **User Statistics**: Total users, active sessions, recent sign-ups
+- **Organization Stats**: Total organizations and projects
+- **Recent Activity**: Latest audit log entries
+
+### Organizations Tab
+
+Manage all organizations in your system:
+
+<AccordionGroup>
+  <Accordion title="View Organizations">
+    - Lists all organizations with metadata
+    - Search and filter by name, status, or creation date
+    - See member counts and project counts
+    - View organization state (enabled/disabled)
+  </Accordion>
+
+  <Accordion title="Create Organization">
+    1. Click **Create Organization**
+    2. Fill in required fields:
+       - **Name**: Unique identifier (slug)
+       - **Title**: Display name
+       - **Metadata**: Additional key-value pairs
+    3. Click **Create**
+    
+    The organization is created with the current user as owner.
+  </Accordion>
+
+  <Accordion title="Manage Organization Members">
+    1. Click on an organization
+    2. Go to **Members** tab
+    3. You can:
+       - View all members and their roles
+       - Add new members by email
+       - Assign roles to members
+       - Remove members
+  </Accordion>
+
+  <Accordion title="Configure Projects">
+    1. Select an organization
+    2. Go to **Projects** tab
+    3. Create, edit, or delete projects
+    4. Manage project-level permissions
+  </Accordion>
+
+  <Accordion title="Manage Groups">
+    1. Select an organization
+    2. Go to **Groups** tab
+    3. Create groups for team organization
+    4. Add users to groups
+    5. Assign roles to groups
+  </Accordion>
+</AccordionGroup>
+
+### Users Tab
+
+Administer user accounts:
+
+<AccordionGroup>
+  <Accordion title="View All Users">
+    - See all registered users
+    - Filter by email, status, or registration date
+    - View authentication methods used
+    - See last login timestamps
+  </Accordion>
+
+  <Accordion title="User Details">
+    Click on a user to see:
+    - Profile information and metadata
+    - Organization memberships
+    - Assigned roles across organizations
+    - Authentication methods linked
+    - Recent activity
+  </Accordion>
+
+  <Accordion title="Manage User Roles">
+    1. Select a user
+    2. Go to **Roles** section
+    3. Choose an organization context
+    4. Assign or remove roles
+    5. Changes take effect immediately
+  </Accordion>
+
+  <Accordion title="Create Service Users">
+    Service users are for API access:
+    
+    1. Go to **Service Users** tab
+    2. Click **Create Service User**
+    3. Provide:
+       - Title/description
+       - Associated organization (optional)
+    4. Save the generated credentials securely
+  </Accordion>
+</AccordionGroup>
+
+### Authentication Tab
+
+Configure authentication methods:
+
+<AccordionGroup>
+  <Accordion title="OIDC Provider Configuration">
+    Visual interface for configuring:
+    - Google OIDC
+    - GitHub OAuth
+    - Azure AD / Microsoft Entra ID
+    - Custom OIDC providers
+    
+    Each provider requires:
+    - Client ID
+    - Client Secret
+    - Issuer URL
+    - Callback URL configuration
+  </Accordion>
+
+  <Accordion title="Email Authentication">
+    Configure:
+    - Magic link settings
+    - OTP (One-Time Password) settings
+    - Email templates
+    - Validity periods
+  </Accordion>
+
+  <Accordion title="Domain Verification">
+    Manage organization domains:
+    
+    1. Navigate to organization domains
+    2. Add a domain (e.g., `acme.com`)
+    3. Verify ownership via DNS TXT record or file upload
+    4. Enable auto-join for verified domains
+    5. Configure default roles for auto-joined users
+  </Accordion>
+</AccordionGroup>
+
+### Preferences Tab
+
+Set platform-wide preferences:
+
+```yaml Example Preferences
+disable_orgs_on_create: true
+disable_orgs_listing: false
+disable_users_listing: false
+invite_with_roles: true
+invite_mail_template_subject: "Join our platform"
+```
+
+<Tabs>
+  <Tab title="Organization Preferences">
+    - **disable_orgs_on_create**: New orgs require admin approval
+    - **disable_orgs_listing**: Hide org list from non-admins
+    - **invite_with_roles**: Allow role assignment during invitation
+  </Tab>
+  
+  <Tab title="User Preferences">
+    - **disable_users_listing**: Hide user list from non-admins
+    - **require_email_verification**: Email must be verified
+  </Tab>
+  
+  <Tab title="Email Templates">
+    - **invite_mail_template_subject**: Invitation email subject
+    - **invite_mail_template_body**: Invitation email body (HTML)
+    - **verification_mail_template**: Email verification template
+  </Tab>
+</Tabs>
+
+### Audit Logs Tab
+
+Monitor all system activity:
+
+<AccordionGroup>
+  <Accordion title="View Audit Logs">
+    See all recorded events:
+    - User actions (create, update, delete)
+    - Permission checks
+    - Organization changes
+    - Authentication events
+    
+    Each log entry shows:
+    - Timestamp
+    - Actor (who performed the action)
+    - Action type
+    - Target resource
+    - Additional metadata
+  </Accordion>
+
+  <Accordion title="Filter and Search">
+    Filter logs by:
+    - Date range
+    - Actor (user)
+    - Action type
+    - Organization
+    - Resource type
+    
+    Use the search box for text search across all fields.
+  </Accordion>
+
+  <Accordion title="Export Logs">
+    Export audit logs for compliance:
+    
+    1. Apply filters as needed
+    2. Click **Export**
+    3. Choose format (CSV, JSON)
+    4. Download the file
+  </Accordion>
+</AccordionGroup>
+
+### Webhooks Tab
+
+Manage webhook endpoints:
+
+<AccordionGroup>
+  <Accordion title="List Webhooks">
+    View all configured webhooks:
+    - Endpoint URL
+    - Subscribed events
+    - State (enabled/disabled)
+    - Last delivery status
+  </Accordion>
+
+  <Accordion title="Create Webhook">
+    1. Click **Create Webhook**
+    2. Configure:
+       - **URL**: Your webhook endpoint
+       - **Description**: What this webhook is for
+       - **Events**: Which events to send
+       - **Headers**: Custom headers (e.g., Authorization)
+    3. Save and receive the signing secret
+    4. Use the secret to verify webhook signatures
+  </Accordion>
+
+  <Accordion title="Test Webhook">
+    1. Select a webhook
+    2. Click **Test**
+    3. Choose an event type
+    4. Send a test event
+    5. View the response
+  </Accordion>
+
+  <Accordion title="Monitor Deliveries">
+    For each webhook:
+    - View recent deliveries
+    - See success/failure status
+    - Inspect request/response
+    - Retry failed deliveries
+  </Accordion>
+</AccordionGroup>
+
+### Billing Tab (Optional)
+
+If billing is enabled:
+
+- View billing accounts
+- Check subscription status
+- Monitor usage and credits
+- View invoices
+- Manage payment methods
+
+## Common Administrative Tasks
+
+### Creating an Organization with Teams
+
+<Steps>
+  <Step title="Create the organization">
+    1. Go to **Organizations** tab
+    2. Click **Create Organization**
+    3. Fill in name and details
+  </Step>
+
+  <Step title="Add members">
+    1. Open the organization
+    2. Go to **Members** tab
+    3. Click **Invite Member**
+    4. Enter email addresses
+    5. Assign initial roles
+  </Step>
+
+  <Step title="Create teams (groups)">
+    1. Go to **Groups** tab
+    2. Create groups like:
+       - `engineering-team`
+       - `design-team`
+       - `product-team`
+  </Step>
+
+  <Step title="Assign members to groups">
+    1. Open each group
+    2. Add members
+    3. Assign group-level roles
+  </Step>
+
+  <Step title="Set up projects">
+    1. Go to **Projects** tab
+    2. Create projects
+    3. Assign projects to groups
+  </Step>
+</Steps>
+
+### Configuring Domain-Based Auto-Join
+
+<Steps>
+  <Step title="Navigate to organization domains">
+    1. Select an organization
+    2. Go to **Domains** tab
+  </Step>
+
+  <Step title="Add domain">
+    1. Click **Add Domain**
+    2. Enter domain (e.g., `acme.com`)
+    3. Click **Add**
+  </Step>
+
+  <Step title="Verify the domain">
+    Two verification methods:
+    
+    **DNS TXT Record:**
+    1. Add TXT record to your DNS:
+       ```
+       _frontier-verification.acme.com TXT "verification-token-here"
+       ```
+    2. Wait for DNS propagation
+    3. Click **Verify**
+    
+    **File Upload:**
+    1. Download verification file
+    2. Upload to `https://acme.com/.well-known/frontier-verification.txt`
+    3. Click **Verify**
+  </Step>
+
+  <Step title="Enable auto-join">
+    1. After verification, toggle **Auto-join**
+    2. Configure default roles for new members
+    3. Save settings
+  </Step>
+</Steps>
+
+Now users with `@acme.com` email addresses automatically join the organization on first login.
+
+### Setting Up Role-Based Access Control
+
+<Steps>
+  <Step title="Define roles">
+    1. Go to **Roles** section
+    2. Create custom roles like:
+       - `project-manager`
+       - `developer`
+       - `viewer`
+  </Step>
+
+  <Step title="Assign permissions to roles">
+    For each role, select permissions:
+    ```
+    project-manager:
+      - app.project.create
+      - app.project.update
+      - app.group.create
+    
+    developer:
+      - app.project.get
+      - app.resource.create
+      - app.resource.update
+    
+    viewer:
+      - app.project.get
+      - app.resource.get
+    ```
+  </Step>
+
+  <Step title="Assign roles to users">
+    1. Go to organization **Members**
+    2. For each member, assign appropriate roles
+    3. Or assign roles to groups
+  </Step>
+</Steps>
+
+## Production Deployment
+
+### Building for Production
+
+```bash
+# Build optimized production bundle
+npm run build
+
+# Preview production build locally
+npm run preview
+```
+
+The build output goes to `dist/` directory.
+
+### Deployment Options
+
+<Tabs>
+  <Tab title="Nginx">
+    ```nginx nginx.conf
+    server {
+        listen 80;
+        server_name admin.your-domain.com;
+        root /var/www/frontier-admin/dist;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        # API proxy (optional)
+        location /api/ {
+            proxy_pass http://frontier-server:8000/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Docker">
+    ```dockerfile Dockerfile
+    FROM node:18-alpine AS builder
+    WORKDIR /app
+    COPY package*.json ./
+    RUN npm ci
+    COPY . .
+    RUN npm run build
+
+    FROM nginx:alpine
+    COPY --from=builder /app/dist /usr/share/nginx/html
+    COPY nginx.conf /etc/nginx/conf.d/default.conf
+    EXPOSE 80
+    CMD ["nginx", "-g", "daemon off;"]
+    ```
+
+    Build and run:
+    ```bash
+    docker build -t frontier-admin .
+    docker run -p 80:80 \
+      -e FRONTIER_API_URL=https://api.your-domain.com \
+      frontier-admin
+    ```
+  </Tab>
+  
+  <Tab title="Static Hosting">
+    Deploy to:
+    - **Vercel**: Connect your repo and deploy
+    - **Netlify**: Drag and drop `dist/` folder
+    - **AWS S3 + CloudFront**: Upload to S3 bucket
+    - **Google Cloud Storage**: Upload and configure CDN
+    
+    Set environment variables in your platform:
+    ```
+    FRONTIER_API_URL=https://api.your-domain.com
+    FRONTIER_CONNECTRPC_URL=https://grpc.your-domain.com
+    ```
+  </Tab>
+</Tabs>
+
+### Security Considerations
+
+<Warning>
+**Production Checklist**:
+
+- ✅ Use HTTPS for both portal and API
+- ✅ Configure CORS properly on Frontier server
+- ✅ Set secure cookies (`session.secure: true`)
+- ✅ Implement CSP (Content Security Policy) headers
+- ✅ Enable rate limiting on Frontier API
+- ✅ Use authentication (disable `identity_proxy_header`)
+- ✅ Regular security updates for dependencies
+- ✅ Monitor access logs
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cannot connect to Frontier server">
+    **Error**: Network error or timeout
+
+    **Solutions**:
+    1. Verify Frontier server is running: `curl http://localhost:8000/v1beta1/ping`
+    2. Check `FRONTIER_API_URL` in `.env` matches server address
+    3. Ensure CORS is configured in Frontier config:
+       ```yaml
+       app:
+         cors:
+           allowed_origins:
+             - "http://localhost:5173"
+       ```
+    4. Check firewall rules allow connections
+  </Accordion>
+
+  <Accordion title="Logged in but seeing 'Access Denied'">
+    **Issue**: User is authenticated but lacks admin privileges
+
+    **Solution**:
+    1. Add user to admin list in Frontier config:
+       ```yaml
+       app:
+         admin:
+           users:
+             - "your-email@example.com"
+       ```
+    2. Restart Frontier server
+    3. Log out and log back in to the portal
+  </Accordion>
+
+  <Accordion title="Portal UI shows outdated data">
+    **Issue**: Changes made via API don't appear in portal
+
+    **Solutions**:
+    1. Hard refresh the page (Ctrl/Cmd + Shift + R)
+    2. Clear browser cache
+    3. Check browser console for errors
+    4. Verify API responses in Network tab
+  </Accordion>
+
+  <Accordion title="Build fails with module errors">
+    **Error**: Module not found or type errors
+
+    **Solutions**:
+    1. Delete `node_modules` and reinstall:
+       ```bash
+       rm -rf node_modules package-lock.json
+       npm install
+       ```
+    2. Ensure Node.js version is 18+
+    3. Check for TypeScript errors: `npm run type-check`
+  </Accordion>
+</AccordionGroup>
+
+## Customization
+
+The Admin Portal can be customized:
+
+### Branding
+
+Edit `src/config/branding.ts`:
+
+```typescript
+export const branding = {
+  name: 'Your Company Portal',
+  logo: '/path/to/logo.svg',
+  primaryColor: '#3B82F6',
+  favicon: '/favicon.ico'
+};
+```
+
+### Adding Custom Pages
+
+1. Create component in `src/pages/`
+2. Add route in `src/App.tsx`
+3. Add navigation item if needed
+
+### Extending with Plugins
+
+The portal supports plugins for additional functionality. Check the plugin documentation for details.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configure Webhooks" icon="webhook" href="/guides/webhooks">
+    Set up webhooks from the admin portal
+  </Card>
+  
+  <Card title="Monitor Audit Logs" icon="list-check" href="/guides/audit-logs">
+    Use audit logs for compliance and security
+  </Card>
+  
+  <Card title="Platform Preferences" icon="sliders" href="/configuration/preferences">
+    Deep dive into platform settings
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    Learn the API behind the portal
+  </Card>
+</CardGroup>

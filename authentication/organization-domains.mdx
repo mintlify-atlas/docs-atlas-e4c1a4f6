@@ -1,0 +1,568 @@
+---
+title: Organization Domains
+description: Configure domain verification to allow automatic organization membership for verified email domains
+---
+
+# Organization Domains
+
+Organization domain verification in Frontier allows users with email addresses from trusted domains to automatically join organizations without explicit invitations. This feature is particularly useful for companies that want to allow all employees from their corporate domain to access their Frontier organization.
+
+## How It Works
+
+There are two ways users can be added to an organization in Frontier:
+
+### 1. Trusted Domain Auto-Join
+
+If a domain (e.g., `acme.com`) is verified as a trusted domain for the `Acme Corp` organization, any user with an email address matching `*@acme.com` can automatically join the organization after authenticating.
+
+### 2. Explicit Invitation
+
+Users with public domain email addresses (e.g., `@gmail.com`) must be explicitly invited to join an organization.
+
+## Domain Verification Process
+
+To prevent unauthorized use of your domain, Frontier requires proof of domain ownership through DNS verification.
+
+### DNS Verification Overview
+
+Every domain has DNS records that are publicly viewable on the internet. DNS records tell computers how to find websites and route email. Frontier uses DNS TXT records to verify domain ownership:
+
+1. Frontier provides a unique verification token
+2. You add this token as a TXT record to your domain's DNS
+3. Frontier performs a DNS lookup to verify the token matches
+4. If verified, the domain is marked as trusted
+
+## Step-by-Step Verification
+
+<Steps>
+
+### Add Domain to Organization
+
+Organization admins or members with update permissions can add a domain:
+
+```bash
+curl --location --request POST 'http://localhost:7400/v1beta1/organizations/{org_id}/domains' \
+  --header 'Content-Type: application/json' \
+  --header 'Authorization: Bearer <token>' \
+  --data-raw '{
+    "name": "acme.com"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "domain": {
+    "id": "dom_abc123def456",
+    "name": "acme.com",
+    "org_id": "org_123",
+    "token": "_frontier-domain-verification=LB6U2lSQgGS55HOy6kpWFqkngRC8TMEjyrakfmYC2D0s+nfy/WkFSg==",
+    "state": "pending",
+    "created_at": "2024-01-15T10:00:00Z",
+    "updated_at": "2024-01-15T10:00:00Z"
+  }
+}
+```
+
+<Note>
+  Save the verification `token` - you'll need it in the next step.
+</Note>
+
+### Access Your Domain Registrar
+
+Log in to your domain registrar's control panel (e.g., GoDaddy, Namecheap, Cloudflare, Route53).
+
+### Navigate to DNS Settings
+
+Locate the DNS management section for your domain. This might be called:
+- DNS Records
+- DNS Management
+- Zone File Settings
+- Advanced DNS
+
+### Add TXT Record
+
+Create a new TXT record with the verification token:
+
+**Record Type:** `TXT`
+
+**Name/Host:** `@` (or leave blank for root domain)
+
+**Value/Content:** `_frontier-domain-verification=LB6U2lSQgGS55HOy6kpWFqkngRC8TMEjyrakfmYC2D0s+nfy/WkFSg==`
+
+**TTL:** `3600` (or default)
+
+<Tabs>
+  <Tab title="Cloudflare">
+    1. Go to DNS settings
+    2. Click "Add record"
+    3. Select **TXT** type
+    4. Name: `@`
+    5. Content: `_frontier-domain-verification=LB6U2l...`
+    6. Click Save
+  </Tab>
+  
+  <Tab title="Route53">
+    1. Select your hosted zone
+    2. Click "Create record"
+    3. Record type: **TXT**
+    4. Name: leave blank or `@`
+    5. Value: `_frontier-domain-verification=LB6U2l...`
+    6. Click Create
+  </Tab>
+  
+  <Tab title="GoDaddy">
+    1. Go to DNS Management
+    2. Click "Add" under Records
+    3. Type: **TXT**
+    4. Name: `@`
+    5. Value: `_frontier-domain-verification=LB6U2l...`
+    6. Click Save
+  </Tab>
+</Tabs>
+
+### Wait for DNS Propagation
+
+DNS changes can take anywhere from a few minutes to several hours to propagate globally. Typically:
+- **Fast registrars** (Cloudflare): 1-5 minutes
+- **Most registrars**: 15-60 minutes
+- **Maximum**: Up to 48 hours
+
+You can check DNS propagation using online tools:
+- [https://dnschecker.org/](https://dnschecker.org/)
+- [https://www.whatsmydns.net/](https://www.whatsmydns.net/)
+
+Search for your domain with record type "TXT" to verify the record is visible.
+
+### Verify Domain Ownership
+
+Once the TXT record is propagated, verify the domain:
+
+```bash
+curl --location --request POST 'http://localhost:7400/v1beta1/organizations/{org_id}/domains/{domain_id}/verify' \
+  --header 'Authorization: Bearer <token>'
+```
+
+**Success Response:**
+
+```json
+{
+  "domain": {
+    "id": "dom_abc123def456",
+    "name": "acme.com",
+    "org_id": "org_123",
+    "state": "verified",
+    "verified_at": "2024-01-15T10:30:00Z",
+    "created_at": "2024-01-15T10:00:00Z",
+    "updated_at": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+**Error Response (Not Found):**
+
+```json
+{
+  "error": {
+    "code": "verification_failed",
+    "message": "DNS verification record not found. Please ensure the TXT record is added and propagated."
+  }
+}
+```
+
+<Warning>
+  Domains must be verified within **7 days** of being added. After 7 days, unverified domains are automatically removed and you must restart the process with a new verification token.
+</Warning>
+
+### Remove TXT Record (Optional)
+
+After successful verification, you can remove the TXT record from your DNS settings. The verification status persists in Frontier.
+
+</Steps>
+
+## Verification Token Format
+
+The verification token has a specific format:
+
+```
+_frontier-domain-verification=<random-base64-string>
+```
+
+**Components:**
+- **Prefix:** `_frontier-domain-verification=` - Identifies this as a Frontier verification token
+- **Token:** 40+ character random base64-encoded string - Ensures uniqueness and prevents guessing
+
+**Example:**
+```
+_frontier-domain-verification=LB6U2lSQgGS55HOy6kpWFqkngRC8TMEjyrakfmYC2D0s+nfy/WkFSg==
+```
+
+## Using Verified Domains
+
+Once a domain is verified, users can automatically join the organization.
+
+### List Joinable Organizations
+
+Users can query which organizations they're eligible to join based on their email domain:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/users/self/organizations' \
+  --header 'Authorization: Bearer <token>'
+```
+
+**Response:**
+
+```json
+{
+  "organizations": [
+    {
+      "id": "org_123",
+      "name": "Acme Corp",
+      "title": "Acme Corporation"
+    }
+  ],
+  "joinable_via_domain": [
+    {
+      "id": "org_456",
+      "name": "acme-engineering",
+      "title": "Acme Engineering Team",
+      "matched_domain": "acme.com"
+    }
+  ]
+}
+```
+
+The `joinable_via_domain` field contains organizations the user can join because their email domain matches a verified domain.
+
+### Join Organization
+
+User can join an organization they're eligible for:
+
+```bash
+curl --location --request POST 'http://localhost:7400/v1beta1/organizations/{org_id}/join' \
+  --header 'Authorization: Bearer <token>'
+```
+
+**Response:**
+
+```json
+{
+  "organization": {
+    "id": "org_456",
+    "name": "acme-engineering",
+    "title": "Acme Engineering Team"
+  },
+  "user_role": "member"
+}
+```
+
+## Managing Domains
+
+### List Organization Domains
+
+View all domains configured for an organization:
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/organizations/{org_id}/domains' \
+  --header 'Authorization: Bearer <token>'
+```
+
+**Response:**
+
+```json
+{
+  "domains": [
+    {
+      "id": "dom_abc123",
+      "name": "acme.com",
+      "org_id": "org_123",
+      "state": "verified",
+      "verified_at": "2024-01-15T10:30:00Z",
+      "created_at": "2024-01-15T10:00:00Z",
+      "updated_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "id": "dom_def456",
+      "name": "acme.org",
+      "org_id": "org_123",
+      "state": "pending",
+      "created_at": "2024-01-20T14:00:00Z",
+      "updated_at": "2024-01-20T14:00:00Z"
+    }
+  ]
+}
+```
+
+### Domain States
+
+| State | Description |
+|-------|-------------|
+| `pending` | Domain added but not yet verified |
+| `verified` | Domain ownership verified via DNS |
+| `failed` | Verification failed (manual review may be required) |
+
+### Remove Domain
+
+Remove a domain from an organization:
+
+```bash
+curl --location --request DELETE 'http://localhost:7400/v1beta1/organizations/{org_id}/domains/{domain_id}' \
+  --header 'Authorization: Bearer <token>'
+```
+
+<Warning>
+  Removing a verified domain will prevent future users with that domain from auto-joining. Existing members are not affected.
+</Warning>
+
+## Multiple Domains
+
+Organizations can have multiple verified domains:
+
+```bash
+# Add first domain
+curl --location --request POST 'http://localhost:7400/v1beta1/organizations/org_123/domains' \
+  --data-raw '{"name": "acme.com"}'
+
+# Add second domain
+curl --location --request POST 'http://localhost:7400/v1beta1/organizations/org_123/domains' \
+  --data-raw '{"name": "acme.org"}'
+
+# Add subsidiary domain
+curl --location --request POST 'http://localhost:7400/v1beta1/organizations/org_123/domains' \
+  --data-raw '{"name": "acmecorp.io"}'
+```
+
+Users with email addresses matching **any** verified domain can join the organization.
+
+## Example: Complete Flow
+
+Here's a complete example of setting up domain verification:
+
+<CodeGroup>
+
+```bash cURL
+# 1. Add domain
+curl -X POST 'http://localhost:7400/v1beta1/organizations/org_123/domains' \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "acme.com"}'
+
+# Response includes verification token:
+# "token": "_frontier-domain-verification=ABC123..."
+
+# 2. Add TXT record to DNS (manual step via registrar)
+# Name: @
+# Type: TXT
+# Value: _frontier-domain-verification=ABC123...
+
+# 3. Wait for DNS propagation (check with dig or online tools)
+
+# 4. Verify domain
+curl -X POST 'http://localhost:7400/v1beta1/organizations/org_123/domains/dom_abc/verify' \
+  -H 'Authorization: Bearer <token>'
+
+# 5. User with acme.com email can now join
+curl -X POST 'http://localhost:7400/v1beta1/organizations/org_123/join' \
+  -H 'Authorization: Bearer <user-token>'
+```
+
+```javascript JavaScript
+const axios = require('axios');
+
+const frontierUrl = 'http://localhost:7400';
+const orgId = 'org_123';
+const adminToken = '<admin-token>';
+
+// 1. Add domain
+async function addDomain() {
+  const response = await axios.post(
+    `${frontierUrl}/v1beta1/organizations/${orgId}/domains`,
+    { name: 'acme.com' },
+    { headers: { 'Authorization': `Bearer ${adminToken}` } }
+  );
+  
+  console.log('Verification token:', response.data.domain.token);
+  console.log('Add this TXT record to your DNS');
+  
+  return response.data.domain.id;
+}
+
+// 2. Verify domain (after adding DNS record)
+async function verifyDomain(domainId) {
+  const response = await axios.post(
+    `${frontierUrl}/v1beta1/organizations/${orgId}/domains/${domainId}/verify`,
+    {},
+    { headers: { 'Authorization': `Bearer ${adminToken}` } }
+  );
+  
+  if (response.data.domain.state === 'verified') {
+    console.log('Domain verified successfully!');
+  } else {
+    console.log('Verification failed. Check DNS record.');
+  }
+}
+
+// Usage
+addDomain().then(domainId => {
+  console.log('Waiting for DNS propagation...');
+  // Wait for DNS to propagate, then:
+  // verifyDomain(domainId);
+});
+```
+
+```python Python
+import requests
+import time
+
+frontier_url = 'http://localhost:7400'
+org_id = 'org_123'
+admin_token = '<admin-token>'
+
+headers = {
+    'Authorization': f'Bearer {admin_token}',
+    'Content-Type': 'application/json'
+}
+
+# 1. Add domain
+response = requests.post(
+    f'{frontier_url}/v1beta1/organizations/{org_id}/domains',
+    json={'name': 'acme.com'},
+    headers=headers
+)
+
+domain = response.json()['domain']
+print(f"Verification token: {domain['token']}")
+print("Add this TXT record to your DNS")
+
+# 2. Wait for DNS propagation
+print("Waiting for DNS propagation...")
+time.sleep(60)  # Wait 1 minute
+
+# 3. Verify domain
+response = requests.post(
+    f"{frontier_url}/v1beta1/organizations/{org_id}/domains/{domain['id']}/verify",
+    headers=headers
+)
+
+if response.json()['domain']['state'] == 'verified':
+    print("Domain verified successfully!")
+else:
+    print("Verification failed. Check DNS record.")
+```
+
+</CodeGroup>
+
+## Security Considerations
+
+<AccordionGroup>
+  <Accordion title="DNS Security">
+    Ensure your DNS provider supports:
+    - DNSSEC (Domain Name System Security Extensions)
+    - Two-factor authentication
+    - Audit logs for DNS changes
+    - IP whitelisting for DNS management
+  </Accordion>
+
+  <Accordion title="Domain Ownership">
+    Only add domains you own or control:
+    - You cannot verify domains you don't own
+    - Attempting to claim others' domains will fail
+    - Domain verification proves ownership
+  </Accordion>
+
+  <Accordion title="Email Validation">
+    Frontier validates email domains during authentication:
+    - Email addresses are normalized and validated
+    - Domain matching is case-insensitive
+    - Subdomains are NOT automatically included
+  </Accordion>
+
+  <Accordion title="Token Expiration">
+    Verification tokens expire after 7 days:
+    - Prevents stale verification attempts
+    - Expired tokens require new domain addition
+    - No security risk from expired tokens
+  </Accordion>
+</AccordionGroup>
+
+## Subdomain Handling
+
+<Info>
+  Verified domains do NOT automatically include subdomains. Each subdomain must be verified separately.
+</Info>
+
+**Example:**
+- Verified: `acme.com` → Matches `user@acme.com`
+- Verified: `acme.com` → Does NOT match `user@eng.acme.com`
+- To match both, verify both domains:
+  - `acme.com`
+  - `eng.acme.com`
+
+## Troubleshooting
+
+### Verification Fails
+
+**Error:** "DNS verification record not found"
+
+**Solutions:**
+1. **Check DNS propagation** - Use [dnschecker.org](https://dnschecker.org)
+2. **Verify TXT record value** - Ensure exact match including prefix
+3. **Check record name** - Should be `@` or root domain
+4. **Wait longer** - DNS can take up to 48 hours
+5. **Clear DNS cache** - `sudo dnsmasq -k` or restart DNS service
+
+### Token Expired
+
+**Error:** "Domain verification token expired"
+
+**Solution:**
+Delete the domain and re-add it to get a new token:
+
+```bash
+# Delete expired domain
+curl -X DELETE 'http://localhost:7400/v1beta1/organizations/{org_id}/domains/{domain_id}' \
+  -H 'Authorization: Bearer <token>'
+
+# Add domain again with new token
+curl -X POST 'http://localhost:7400/v1beta1/organizations/{org_id}/domains' \
+  -H 'Authorization: Bearer <token>' \
+  -d '{"name": "acme.com"}'
+```
+
+### Users Cannot Join
+
+**Issue:** User with verified domain cannot join organization
+
+**Checklist:**
+- [ ] Domain state is "verified" (not "pending")
+- [ ] User's email domain exactly matches verified domain
+- [ ] User is authenticated with correct email
+- [ ] Organization has not reached member limit
+- [ ] User is not already a member
+
+### Multiple DNS Records
+
+**Question:** Can I have multiple TXT records for the same domain?
+
+**Answer:** Yes! DNS supports multiple TXT records. The verification token can coexist with other TXT records (SPF, DKIM, etc.).
+
+## Best Practices
+
+1. **Verify promptly** - Add DNS record and verify within 7 days
+2. **Document tokens** - Keep verification tokens in secure documentation
+3. **Monitor domains** - Regularly review verified domains
+4. **Use DNSSEC** - Enable DNSSEC on your domain for added security
+5. **Clean up records** - Remove verification TXT record after successful verification
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="User Authentication" icon="user" href="/authentication/users">
+    Learn about user authentication flows
+  </Card>
+  
+  <Card title="Organizations" icon="building" href="/concepts/organizations">
+    Understand organization structure and management
+  </Card>
+</CardGroup>

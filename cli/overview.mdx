@@ -1,0 +1,201 @@
+---
+title: CLI Overview
+description: Introduction to the Frontier command-line interface
+---
+
+The Frontier CLI is a powerful command-line tool for managing your Frontier instance. It provides commands for server management, database migrations, and resource management including users, organizations, projects, groups, roles, permissions, and policies.
+
+## What is the Frontier CLI?
+
+Frontier CLI is a unified command-line interface for:
+
+- **Server Management** - Start, configure, and manage Frontier server instances
+- **Database Operations** - Run migrations and manage database schema
+- **Resource Management** - Create and manage users, organizations, projects, and groups
+- **Authorization** - Configure roles, permissions, and policies
+- **Development** - Seed sample data and generate configuration files
+
+## Key Features
+
+### Server Commands
+
+Manage your Frontier server with ease:
+- Initialize server configuration
+- Start and run the server
+- Perform database migrations
+- Generate RSA keys for authentication
+
+### Resource Management
+
+Full CRUD operations for all Frontier resources:
+- **Users** - Create, update, view, and list users
+- **Organizations** - Manage organizations and their admins
+- **Projects** - Handle project lifecycle within organizations
+- **Groups** - Organize users into groups
+- **Service Users** - Manage service accounts for API access
+
+### Authorization
+
+Configure fine-grained access control:
+- **Permissions** - Define what actions can be performed
+- **Roles** - Group permissions into roles
+- **Policies** - Assign roles to users and resources
+- **Namespaces** - Organize permissions by domain
+
+### Development Tools
+
+- **Seed Command** - Bootstrap sample data for testing
+- **Config Management** - Initialize and manage client configurations
+- **Preferences** - Set platform-wide and resource-specific preferences
+
+## Command Structure
+
+Frontier CLI follows a hierarchical command structure:
+
+```bash
+frontier <command> <subcommand> [flags]
+```
+
+### Example Commands
+
+<CodeGroup>
+```bash Server Management
+# Start the server
+frontier server start -c config.yaml
+
+# Run migrations
+frontier server migrate
+```
+
+```bash User Management
+# Create a user
+frontier user create --file user.json -H X-Frontier-Email:admin@example.com
+
+# List all users
+frontier user list
+
+# View user details
+frontier user view <user-id>
+```
+
+```bash Organization Management
+# Create an organization
+frontier organization create --file org.json -H X-Frontier-Email:admin@example.com
+
+# List organizations
+frontier organization list
+```
+</CodeGroup>
+
+## Authentication
+
+Most CLI commands require authentication via header flags. The authentication header is configured in your server config and typically looks like:
+
+```bash
+frontier user create --file user.json --header X-Frontier-Email:admin@example.com
+```
+
+The header format is `<key>:<value>` where the key is your configured identity proxy header.
+
+<Note>
+The authentication header key is configured in your Frontier server configuration under `app.identity_proxy_header`. Common values include `X-Frontier-Email` or `X-Auth-Email`.
+</Note>
+
+## Configuration
+
+The CLI can be configured using:
+
+1. **Configuration Files** - Use `-c` or `--config` flag to specify server config
+2. **Client Config** - Initialize with `frontier config init`
+3. **Environment Variables** - See [Environment Variables](#environment-variables)
+
+### Environment Variables
+
+<ParamField path="RAYSTACK_CONFIG_DIR" type="string">
+  Directory where Frontier stores configuration files. Default: `$XDG_CONFIG_HOME/raystack` or `$HOME/.config/raystack`
+</ParamField>
+
+<ParamField path="NO_COLOR" type="string">
+  Set to any value to disable ANSI color output
+</ParamField>
+
+<ParamField path="CLICOLOR" type="string">
+  Set to `0` to disable ANSI colors in output
+</ParamField>
+
+## Getting Help
+
+Get help for any command using the `--help` flag:
+
+```bash
+frontier --help
+frontier server --help
+frontier user create --help
+```
+
+### Help Topics
+
+Frontier provides additional help topics:
+
+```bash
+# View environment variables
+frontier help environment
+
+# View authentication help
+frontier help auth
+```
+
+## Common Workflows
+
+### Setting Up a New Frontier Instance
+
+1. Initialize server configuration:
+   ```bash
+   frontier server init -o config.yaml
+   ```
+
+2. Run database migrations:
+   ```bash
+   frontier server migrate -c config.yaml
+   ```
+
+3. Start the server:
+   ```bash
+   frontier server start -c config.yaml
+   ```
+
+4. Seed sample data (optional):
+   ```bash
+   frontier seed -H X-Frontier-Email:admin@example.com
+   ```
+
+### Managing Users and Organizations
+
+1. Create a user:
+   ```bash
+   frontier user create --file user.json -H X-Frontier-Email:admin@example.com
+   ```
+
+2. Create an organization:
+   ```bash
+   frontier organization create --file org.json -H X-Frontier-Email:admin@example.com
+   ```
+
+3. Create a project in the organization:
+   ```bash
+   frontier project create --file project.json -H X-Frontier-Email:admin@example.com
+   ```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="./installation">
+    Install the Frontier CLI on your system
+  </Card>
+  <Card title="Commands Reference" icon="terminal" href="./commands">
+    Complete reference of all CLI commands
+  </Card>
+  <Card title="Shell Autocomplete" icon="keyboard" href="./shell-autocomplete">
+    Enable command autocompletion
+  </Card>
+</CardGroup>

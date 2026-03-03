@@ -1,122 +1,216 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Frontier",
+  "theme": "linden",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#3B82F6",
+    "light": "#60A5FA",
+    "dark": "#1E40AF"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/raystack/frontier"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/raystack/frontier"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Overview",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/architecture",
+              "concepts/glossary"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Authentication",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "authentication/overview",
+              "authentication/users",
+              "authentication/service-users",
+              "authentication/sessions",
+              "authentication/organization-domains"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Authorization",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "authorization/overview",
+              "authorization/permissions",
+              "authorization/roles",
+              "authorization/policies",
+              "authorization/examples"
+            ]
+          },
+          {
+            "group": "Organization Management",
+            "pages": [
+              "organizations/overview",
+              "organizations/organizations",
+              "organizations/projects",
+              "organizations/groups",
+              "organizations/resources"
+            ]
+          },
+          {
+            "group": "Billing",
+            "pages": [
+              "billing/overview",
+              "billing/products-and-plans",
+              "billing/subscriptions",
+              "billing/customers",
+              "billing/credits",
+              "billing/entitlements"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/getting-started",
+              "guides/setup-oidc",
+              "guides/admin-portal",
+              "guides/webhooks",
+              "guides/audit-logs"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/server",
+              "configuration/database",
+              "configuration/smtp",
+              "configuration/billing-engine",
+              "configuration/metaschemas",
+              "configuration/preferences"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Getting Started",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/overview",
+              "api-reference/authentication"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Users",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api-reference/users/list-users",
+              "api-reference/users/create-user",
+              "api-reference/users/get-user",
+              "api-reference/users/update-user",
+              "api-reference/users/delete-user"
+            ]
+          },
+          {
+            "group": "Organizations",
+            "pages": [
+              "api-reference/organizations/list-organizations",
+              "api-reference/organizations/create-organization",
+              "api-reference/organizations/get-organization",
+              "api-reference/organizations/update-organization",
+              "api-reference/organizations/delete-organization"
+            ]
+          },
+          {
+            "group": "Projects",
+            "pages": [
+              "api-reference/projects/list-projects",
+              "api-reference/projects/create-project",
+              "api-reference/projects/get-project",
+              "api-reference/projects/update-project",
+              "api-reference/projects/delete-project"
+            ]
+          },
+          {
+            "group": "Groups",
+            "pages": [
+              "api-reference/groups/list-groups",
+              "api-reference/groups/create-group",
+              "api-reference/groups/get-group",
+              "api-reference/groups/update-group",
+              "api-reference/groups/delete-group"
+            ]
+          },
+          {
+            "group": "Permissions & Roles",
+            "pages": [
+              "api-reference/permissions/list-permissions",
+              "api-reference/permissions/create-permission",
+              "api-reference/permissions/check-permission",
+              "api-reference/roles/list-roles",
+              "api-reference/roles/create-role"
+            ]
+          },
+          {
+            "group": "Policies",
+            "pages": [
+              "api-reference/policies/list-policies",
+              "api-reference/policies/create-policy",
+              "api-reference/policies/get-policy",
+              "api-reference/policies/update-policy",
+              "api-reference/policies/delete-policy"
+            ]
+          },
+          {
+            "group": "Billing",
+            "pages": [
+              "api-reference/billing/list-billing-accounts",
+              "api-reference/billing/create-billing-account",
+              "api-reference/billing/create-subscription",
+              "api-reference/billing/create-checkout",
+              "api-reference/billing/get-balance"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "SDKs",
+        "groups": [
+          {
+            "group": "Client SDKs",
+            "pages": [
+              "sdks/overview",
+              "sdks/react",
+              "sdks/javascript"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI",
+        "groups": [
+          {
+            "group": "CLI Reference",
+            "pages": [
+              "cli/overview",
+              "cli/installation",
+              "cli/commands",
+              "cli/shell-autocomplete"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

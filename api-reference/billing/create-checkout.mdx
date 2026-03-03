@@ -1,0 +1,172 @@
+---
+title: 'Create Checkout Session'
+openapi: 'POST /v1beta1/organizations/{org_id}/billing/{billing_id}/checkouts'
+---
+
+<Note>
+This endpoint creates a new checkout session for subscribing to a plan or purchasing a product. It returns a checkout URL that redirects users to complete payment.
+</Note>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST "https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/checkouts" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscription_body": {
+      "plan": "plan_123",
+      "skip_trial": false,
+      "cancel_after_trial": false
+    },
+    "success_url": "https://acme.com/success",
+    "cancel_url": "https://acme.com/cancel"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/checkouts',
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer <token>',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      subscription_body: {
+        plan: 'plan_123',
+        skip_trial: false,
+        cancel_after_trial: false
+      },
+      success_url: 'https://acme.com/success',
+      cancel_url: 'https://acme.com/cancel'
+    })
+  }
+);
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://frontier.example.com/v1beta1/organizations/{org_id}/billing/{billing_id}/checkouts',
+    headers={
+        'Authorization': 'Bearer <token>',
+        'Content-Type': 'application/json'
+    },
+    json={
+        'subscription_body': {
+            'plan': 'plan_123',
+            'skip_trial': False,
+            'cancel_after_trial': False
+        },
+        'success_url': 'https://acme.com/success',
+        'cancel_url': 'https://acme.com/cancel'
+    }
+)
+data = response.json()
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "checkout_session": {
+    "id": "checkout_123",
+    "checkout_url": "https://checkout.stripe.com/c/pay/cs_test_123",
+    "success_url": "https://acme.com/success",
+    "cancel_url": "https://acme.com/cancel",
+    "state": "open",
+    "plan": "plan_123",
+    "created_at": "2023-06-07T05:39:56.961Z",
+    "updated_at": "2023-06-07T05:39:56.961Z",
+    "expire_at": "2023-06-07T06:39:56.961Z"
+  }
+}
+```
+
+```json 400
+{
+  "code": 3,
+  "message": "Bad Request - Either subscription_body or product_body is required",
+  "details": []
+}
+```
+
+```json 401
+{
+  "code": 16,
+  "message": "Unauthorized - Authentication is required",
+  "details": []
+}
+```
+
+```json 404
+{
+  "code": 5,
+  "message": "Not Found - Billing account not found",
+  "details": []
+}
+```
+
+</ResponseExample>
+
+## Checkout Options
+
+<ParamField body="subscription_body" type="object">
+  Subscription configuration for the checkout session.
+  
+  <Expandable title="properties">
+    <ParamField body="plan" type="string" required>
+      Plan ID to subscribe to
+    </ParamField>
+    
+    <ParamField body="skip_trial" type="boolean">
+      Skip the trial period (default: false)
+    </ParamField>
+    
+    <ParamField body="cancel_after_trial" type="boolean">
+      Cancel subscription after trial ends (default: false)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="product_body" type="object">
+  Product configuration for one-time purchase.
+  
+  <Expandable title="properties">
+    <ParamField body="product" type="string" required>
+      Product ID to purchase
+    </ParamField>
+    
+    <ParamField body="quantity" type="integer">
+      Quantity to purchase (default: 1)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="setup_body" type="object">
+  Setup configuration for payment method or customer portal.
+  
+  <Expandable title="properties">
+    <ParamField body="payment_method" type="boolean">
+      Create setup session for adding payment method
+    </ParamField>
+    
+    <ParamField body="customer_portal" type="boolean">
+      Create session for customer portal access
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="success_url" type="string" required>
+  URL to redirect to after successful checkout
+</ParamField>
+
+<ParamField body="cancel_url" type="string" required>
+  URL to redirect to if checkout is cancelled
+</ParamField>

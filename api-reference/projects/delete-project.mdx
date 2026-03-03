@@ -1,0 +1,120 @@
+---
+title: 'Delete Project'
+openapi: 'DELETE /v1beta1/projects/{id}'
+---
+
+Permanently delete a project and all its associated resources. This operation cannot be undone.
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  Project identifier to delete. Must be a valid project UUID.
+  
+  **Example**: `3f4a5b6c-7d8e-9f0a-1b2c-3d4e5f6a7b8c`
+</ParamField>
+
+## Response
+
+Returns an empty response with HTTP 200 status code on successful deletion.
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE 'https://api.frontier.example.com/v1beta1/projects/3f4a5b6c-7d8e-9f0a-1b2c-3d4e5f6a7b8c' \
+  -H 'Authorization: Bearer <token>'
+```
+
+```javascript JavaScript
+const projectId = '3f4a5b6c-7d8e-9f0a-1b2c-3d4e5f6a7b8c';
+const response = await fetch(`https://api.frontier.example.com/v1beta1/projects/${projectId}`, {
+  method: 'DELETE',
+  headers: {
+    'Authorization': 'Bearer <token>'
+  }
+});
+
+if (response.ok) {
+  console.log('Project deleted successfully');
+} else {
+  const error = await response.json();
+  console.error('Delete failed:', error);
+}
+```
+
+```python Python
+import requests
+
+project_id = '3f4a5b6c-7d8e-9f0a-1b2c-3d4e5f6a7b8c'
+response = requests.delete(
+    f'https://api.frontier.example.com/v1beta1/projects/{project_id}',
+    headers={'Authorization': 'Bearer <token>'}
+)
+
+if response.ok:
+    print('Project deleted successfully')
+else:
+    print(f'Delete failed: {response.json()}')
+```
+
+```go Go
+package main
+
+import (
+    "context"
+    "fmt"
+    frontierv1beta1 "github.com/raystack/frontier/proto/v1beta1"
+)
+
+func deleteProject(client frontierv1beta1.FrontierServiceClient) {
+    req := &frontierv1beta1.DeleteProjectRequest{
+        Id: "3f4a5b6c-7d8e-9f0a-1b2c-3d4e5f6a7b8c",
+    }
+    
+    _, err := client.DeleteProject(context.Background(), req)
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Println("Project deleted successfully")
+}
+```
+
+</CodeGroup>
+
+## Response Example
+
+```json
+{}
+```
+
+Successful deletion returns an empty JSON object.
+
+## Error Responses
+
+<ResponseField name="code" type="string">
+  Error code indicating the type of error.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable error message.
+</ResponseField>
+
+### Common Errors
+
+- **401 Unauthorized**: Invalid or missing authentication token
+- **403 Forbidden**: You don't have permission to delete this project
+- **404 Not Found**: Project not found
+- **500 Internal Server Error**: Server encountered an unexpected error during deletion
+
+## Notes
+
+- **This operation is irreversible** - deleted projects cannot be recovered
+- Deleting a project will:
+  - Remove all project resources and relations
+  - Delete all policies associated with the project
+  - Remove all user and group memberships
+  - Clean up all associated metadata
+- You must have delete/admin permissions on the project to perform this operation
+- The delete operation uses a cascade deleter service that handles cleanup of all related resources
+- Consider disabling the project instead of deleting it if you need to preserve historical data
+- An audit log entry may be created for the deletion event (depending on configuration)

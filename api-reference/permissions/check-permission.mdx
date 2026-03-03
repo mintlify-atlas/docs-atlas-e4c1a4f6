@@ -1,0 +1,119 @@
+---
+title: 'Check Permission'
+api: 'POST /v1beta1/check'
+---
+
+Checks if the authenticated principal (user or service account) has the required permission to access a specific resource. Returns `true` if permitted, `false` otherwise.
+
+Frontier extracts the principal from:
+- Current logged-in session cookie
+- Client ID and secret (for service users)
+- Access token
+
+## Body
+
+<ParamField body="permission" type="string" required>
+  The permission name to check.
+  
+  Examples: `get`, `list`, `compute.instance.create`
+</ParamField>
+
+<ParamField body="resource" type="string">
+  Resource identifier in one of these formats:
+  - `namespace:uuid` - For organization or project by ID
+  - `namespace:name` - For organization or project by name
+  - `namespace:urn` - For a resource under a project
+  
+  You can use aliases `org` or `project` instead of full namespace.
+  
+  Examples:
+  - `organization:92f69c3a-334b-4f25-90b8-4d4f3be6b825`
+  - `app/project:project-name`
+  - `compute/instance:92f69c3a-334b-4f25-90b8-4d4f3be6b825`
+</ParamField>
+
+<ParamField body="object_id" type="string" deprecated>
+  Deprecated. Use `resource` field instead.
+</ParamField>
+
+<ParamField body="object_namespace" type="string" deprecated>
+  Deprecated. Use `resource` field instead.
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="boolean">
+  Whether the principal has the requested permission
+  
+  - `true` - Permission granted
+  - `false` - Permission denied
+</ResponseField>
+
+<CodeGroup>
+```bash cURL
+curl -X POST 'https://frontier.example.com/v1beta1/check' \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "permission": "compute.instance.get",
+    "resource": "compute/instance:92f69c3a-334b-4f25-90b8-4d4f3be6b825"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://frontier.example.com/v1beta1/check', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer <token>',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    permission: 'compute.instance.get',
+    resource: 'compute/instance:92f69c3a-334b-4f25-90b8-4d4f3be6b825'
+  })
+});
+
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://frontier.example.com/v1beta1/check',
+    headers={
+        'Authorization': 'Bearer <token>',
+        'Content-Type': 'application/json'
+    },
+    json={
+        'permission': 'compute.instance.get',
+        'resource': 'compute/instance:92f69c3a-334b-4f25-90b8-4d4f3be6b825'
+    }
+)
+
+data = response.json()
+```
+</CodeGroup>
+
+## Request Example
+
+```json
+{
+  "permission": "compute.instance.get",
+  "resource": "compute/instance:92f69c3a-334b-4f25-90b8-4d4f3be6b825"
+}
+```
+
+## Response Example
+
+```json
+{
+  "status": true
+}
+```
+
+## Usage Notes
+
+- The endpoint automatically audits all permission checks
+- Audit logs record both successful and failed permission checks
+- For batch permission checks, use the `/v1beta1/batch-check` endpoint instead

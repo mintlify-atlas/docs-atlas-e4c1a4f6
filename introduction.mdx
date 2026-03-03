@@ -1,0 +1,184 @@
+---
+title: "Introduction to Frontier"
+description: "Enterprise-grade identity and access management for modern applications"
+---
+
+## What is Frontier?
+
+Frontier is a cloud-native identity and access management (IAM) platform designed to help organizations secure their systems and data. Built by Raystack, Frontier provides comprehensive user authentication, role-based authorization, and multi-tenant organization management through a modern, API-first architecture.
+
+With Frontier, you can manage authentication and authorization across all your applications and services, ensuring that only authorized users have access to your valuable resources.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get Frontier up and running in minutes
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Install Frontier on your platform
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/concepts/architecture">
+    Understand Frontier's architecture
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    Explore the complete API documentation
+  </Card>
+</CardGroup>
+
+## Key Features
+
+Frontier combines powerful identity and access management capabilities into a single, unified platform.
+
+<CardGroup cols={2}>
+  <Card title="Single Sign-On (SSO)" icon="key">
+    Implement OIDC-compliant authentication with support for Google, Microsoft Azure AD, GitHub, LinkedIn, and other identity providers. Enable seamless single login and logout across all your applications.
+  </Card>
+  
+  <Card title="Role-Based Access Control" icon="shield-halved">
+    Define roles, permissions, and policies using SpiceDB-powered authorization. Simplify access management with predefined roles and fine-grained permissions.
+  </Card>
+  
+  <Card title="Multi-Tenant Organizations" icon="building">
+    Manage multiple organizations, each with their own users, projects, groups, and resources. Support complex organizational hierarchies with ease.
+  </Card>
+  
+  <Card title="Integrated Billing" icon="credit-card">
+    Built-in billing engine with Stripe integration. Manage subscriptions, plans, virtual credits, and feature entitlements out of the box.
+  </Card>
+  
+  <Card title="Service User Authentication" icon="robot">
+    Support machine-to-machine authentication with API keys, client credentials, and JWT-based authentication for service accounts.
+  </Card>
+  
+  <Card title="Admin Portal" icon="gauge-high">
+    Out-of-the-box web interface for managing SSO configuration, users, groups, organizations, and roles in one place.
+  </Card>
+  
+  <Card title="Audit Logging" icon="clipboard-list">
+    Comprehensive audit trails for all user activity and access-related events. Generate reports on user activity and access levels.
+  </Card>
+  
+  <Card title="Webhooks" icon="webhook">
+    Real-time event notifications for user actions, policy changes, and billing events to integrate with your systems.
+  </Card>
+  
+  <Card title="Virtual Credits" icon="coins">
+    Flexible pay-as-you-go model with virtual credits for usage-based billing. Track and manage credit balances automatically.
+  </Card>
+  
+  <Card title="Feature Entitlements" icon="list-check">
+    Control feature access based on user subscriptions and plans. Check entitlements programmatically via API.
+  </Card>
+</CardGroup>
+
+## How Frontier Works
+
+Frontier acts as a central authentication and authorization server for your applications:
+
+1. **Configure Frontier** - Set up database connections, OIDC providers, email services, and define your access policies and resource types.
+
+2. **Define Resources & Policies** - Configure resource types, roles, and permissions that match your application's security model.
+
+3. **Connect Your Applications** - Integrate frontend and backend services using Frontier's REST/gRPC APIs, CLI, or SDKs.
+
+4. **Authenticate Users** - Users authenticate once through Frontier and gain access to all connected applications seamlessly.
+
+5. **Authorize Requests** - Frontier validates permissions using SpiceDB before granting access to protected resources.
+
+<Note>
+  Frontier is API-driven and provides multiple interfaces: REST/HTTP APIs, gRPC APIs, CLI tools, and an Admin Portal for management tasks.
+</Note>
+
+## Architecture Overview
+
+Frontier uses a modern, cloud-native architecture:
+
+- **API Server** - Exposes HTTP and gRPC APIs for managing users, organizations, policies, and authorization checks
+- **PostgreSQL** - Stores business logic including user details, organizations, roles, and billing data
+- **SpiceDB** - Google Zanzibar-inspired authorization engine for fine-grained permissions
+- **Admin Portal** - React-based web interface for platform administration
+
+<Tip>
+  New to IAM concepts? Start with the [Architecture guide](/concepts/architecture) to understand Frontier's design principles.
+</Tip>
+
+## Use Cases
+
+Frontier is ideal for:
+
+- **SaaS Platforms** - Build multi-tenant applications with organization-level isolation and role-based access
+- **Enterprise Applications** - Implement SSO and centralized access control across internal tools
+- **API Services** - Secure microservices with token-based authentication and policy-driven authorization
+- **Developer Platforms** - Manage user access to APIs, resources, and features with billing integration
+
+## Multiple Interfaces
+
+Choose the interface that works best for your workflow:
+
+<AccordionGroup>
+  <Accordion title="REST/HTTP API" icon="globe">
+    Full-featured HTTP API for all Frontier operations. Perfect for frontend applications and service integrations.
+    
+    ```bash
+    curl -X GET https://frontier.example.com/v1beta1/users \
+      -H "Authorization: Bearer <token>"
+    ```
+  </Accordion>
+  
+  <Accordion title="gRPC API" icon="server">
+    High-performance gRPC APIs for backend services. Ideal for microservices architectures.
+    
+    See [proton](https://github.com/raystack/proton/tree/main/raystack/frontier/v1beta1) for gRPC definitions.
+  </Accordion>
+  
+  <Accordion title="CLI" icon="terminal">
+    Command-line interface for automation, scripting, and administrative tasks.
+    
+    ```bash
+    frontier user list
+    frontier organization create --name "Acme Corp"
+    ```
+  </Accordion>
+  
+  <Accordion title="Admin Portal" icon="browser">
+    Web-based interface for visual management of organizations, users, groups, and SSO configuration.
+  </Accordion>
+</AccordionGroup>
+
+## Getting Started
+
+Ready to get started with Frontier?
+
+<Steps>
+  <Step title="Install Frontier">
+    Choose your preferred installation method: [Homebrew](/installation#macos), [Docker](/installation#docker), or [binary download](/installation#binary).
+  </Step>
+  
+  <Step title="Follow the Quick Start">
+    Complete the [Quick Start guide](/quickstart) to set up your first organization and user.
+  </Step>
+  
+  <Step title="Explore the Concepts">
+    Learn about [Authentication](/authentication/overview), [Authorization](/authorization/overview), and [Organizations](/organizations/overview).
+  </Step>
+  
+  <Step title="Integrate with Your Apps">
+    Use the [API Reference](/api-reference/overview) to integrate Frontier with your applications.
+  </Step>
+</Steps>
+
+## Open Source
+
+Frontier is open source and licensed under Apache 2.0. We welcome contributions from the community.
+
+<CardGroup cols={2}>
+  <Card title="GitHub Repository" icon="github" href="https://github.com/raystack/frontier">
+    View source code, report issues, and contribute
+  </Card>
+  <Card title="Contribution Guide" icon="code-pull-request" href="/contribution/contribute">
+    Learn how to contribute to Frontier
+  </Card>
+</CardGroup>
+
+<Note>
+  Need help? Check out our [Support page](/support) or join the [community discussions](https://github.com/raystack/frontier/discussions).
+</Note>

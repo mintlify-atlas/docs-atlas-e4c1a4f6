@@ -1,0 +1,416 @@
+---
+title: Database Configuration
+---
+
+Frontier requires two databases: **PostgreSQL** for application data and **SpiceDB** for authorization relationships. This guide covers configuration for both.
+
+## PostgreSQL Configuration
+
+Frontier uses PostgreSQL to store users, organizations, subscriptions, billing data, and other application state.
+
+### Requirements
+
+- PostgreSQL 12 or higher
+- Database with appropriate permissions for schema migrations
+- SSL/TLS recommended for production
+
+### Configuration
+
+<ParamField path="db.driver" type="string" default="postgres" required>
+  Database driver. Currently only PostgreSQL is supported.
+</ParamField>
+
+<ParamField path="db.url" type="string" required>
+  PostgreSQL connection string.
+  
+  ```yaml
+  db:
+    url: "postgres://username:password@localhost:5432/frontier?sslmode=disable"
+  ```
+  
+  **Format:** `postgres://[user]:[password]@[host]:[port]/[database]?[parameters]`
+  
+  <Warning>
+  Use `sslmode=require` or `sslmode=verify-full` in production environments.
+  </Warning>
+</ParamField>
+
+<ParamField path="db.max_idle_conns" type="integer" default="10">
+  Maximum number of idle connections in the pool.
+  
+  Idle connections are kept open for reuse. Increase for high-traffic applications.
+</ParamField>
+
+<ParamField path="db.max_open_conns" type="integer" default="10">
+  Maximum number of open connections to the database.
+  
+  Limits total concurrent connections. Should be set based on your PostgreSQL `max_connections` setting.
+  
+  **Recommended:** Set to PostgreSQL's `max_connections` divided by number of application instances.
+</ParamField>
+
+<ParamField path="db.conn_max_life_time" type="duration" default="15m">
+  Maximum amount of time a connection can be reused.
+  
+  ```yaml
+  db:
+    conn_max_life_time: "30m"
+  ```
+  
+  Helps prevent connection leaks and ensures connections are refreshed periodically.
+</ParamField>
+
+<ParamField path="db.max_query_timeout" type="duration" default="500ms">
+  Maximum execution time for individual database queries.
+  
+  ```yaml
+  db:
+    max_query_timeout: "2s"
+  ```
+  
+  Queries exceeding this timeout will be cancelled.
+</ParamField>
+
+### Connection String Parameters
+
+Common PostgreSQL connection parameters:
+
+- **sslmode** - SSL connection mode
+  - `disable` - No SSL (development only)
+  - `require` - Require SSL but don't verify certificate
+  - `verify-ca` - Require SSL and verify certificate
+  - `verify-full` - Require SSL, verify certificate and hostname
+
+- **connect_timeout** - Connection timeout in seconds
+- **application_name** - Application name for PostgreSQL logs
+- **search_path** - Default schema search path
+
+### Example Configurations
+
+<CodeGroup>
+```yaml Development
+db:
+  driver: postgres
+  url: postgres://frontier:frontier@localhost:5432/frontier?sslmode=disable
+  max_idle_conns: 5
+  max_open_conns: 10
+  conn_max_life_time: 15m
+  max_query_timeout: 500ms
+```
+
+```yaml Production
+db:
+  driver: postgres
+  url: postgres://frontier_user:secure_password@db.example.com:5432/frontier?sslmode=verify-full&connect_timeout=10&application_name=frontier
+  max_idle_conns: 20
+  max_open_conns: 100
+  conn_max_life_time: 30m
+  max_query_timeout: 2s
+```
+
+```yaml Environment Variable
+# Using environment variable for sensitive credentials
+export FRONTIER_SERVICE_DB_URL="postgres://user:${DB_PASSWORD}@localhost:5432/frontier?sslmode=require"
+export FRONTIER_SERVICE_DB_MAX_OPEN_CONNS=50
+export FRONTIER_SERVICE_DB_MAX_IDLE_CONNS=10
+```
+</CodeGroup>
+
+### Database Initialization
+
+Frontier automatically runs migrations on startup. To initialize the database:
+
+```bash
+# Run migrations
+frontier server migrate
+
+# Check migration status
+frontier server migrate --check
+```
+
+### Performance Tuning
+
+For production deployments:
+
+1. **Connection Pool Sizing**
+   ```yaml
+   db:
+     max_open_conns: 100  # Based on your traffic
+     max_idle_conns: 25   # ~25% of max_open_conns
+     conn_max_life_time: 30m
+   ```
+
+2. **Query Timeout**
+   ```yaml
+   db:
+     max_query_timeout: 2s  # Fail fast on slow queries
+   ```
+
+3. **PostgreSQL Settings** (postgresql.conf)
+   ```ini
+   max_connections = 200
+   shared_buffers = 256MB
+   effective_cache_size = 1GB
+   maintenance_work_mem = 64MB
+   checkpoint_completion_target = 0.9
+   wal_buffers = 16MB
+   default_statistics_target = 100
+   random_page_cost = 1.1
+   effective_io_concurrency = 200
+   work_mem = 4MB
+   min_wal_size = 1GB
+   max_wal_size = 4GB
+   ```
+
+## SpiceDB Configuration
+
+SpiceDB is Frontier's authorization database, implementing Google Zanzibar-style permissions.
+
+### Requirements
+
+- SpiceDB v1.22.0 or higher
+- Running SpiceDB instance (see [SpiceDB installation](https://authzed.com/docs/spicedb/installing))
+- Network connectivity between Frontier and SpiceDB
+
+### Configuration
+
+<ParamField path="spicedb.host" type="string" required>
+  Hostname or IP address of the SpiceDB service.
+  
+  ```yaml
+  spicedb:
+    host: spicedb.localhost
+    # Or for Kubernetes:
+    # host: spicedb-service.default.svc.cluster.local
+  ```
+</ParamField>
+
+<ParamField path="spicedb.port" type="string" default="50051" required>
+  Port number for SpiceDB gRPC API.
+</ParamField>
+
+<ParamField path="spicedb.pre_shared_key" type="string" required>
+  Authentication key for SpiceDB communication.
+  
+  ```yaml
+  spicedb:
+    pre_shared_key: "your-secure-random-key"
+  ```
+  
+  <Warning>
+  Generate a secure random key and keep it secret. This key authenticates Frontier to SpiceDB.
+  </Warning>
+</ParamField>
+
+<ParamField path="spicedb.consistency" type="string" default="best_effort">
+  Consistency mode for SpiceDB operations.
+  
+  **Options:**
+  - `full` - Guarantees fresh data, slower performance
+  - `best_effort` - Balances freshness and performance (recommended)
+  - `minimize_latency` - Prioritizes speed, may return slightly stale data
+  
+  ```yaml
+  spicedb:
+    consistency: "best_effort"
+  ```
+</ParamField>
+
+<ParamField path="spicedb.check_trace" type="boolean" default="false">
+  Enable detailed tracing for SpiceDB permission checks.
+  
+  <Warning>
+  Adds significant latency to check operations. Only enable for debugging in non-production environments.
+  </Warning>
+</ParamField>
+
+<ParamField path="spicedb.fully_consistent" type="boolean" default="false">
+  **Deprecated:** Use `consistency: "full"` instead.
+  
+  Ensures fully consistent API responses at the cost of performance.
+</ParamField>
+
+### Example Configurations
+
+<CodeGroup>
+```yaml Development
+spicedb:
+  host: localhost
+  port: 50051
+  pre_shared_key: "dev-key-not-for-production"
+  consistency: "minimize_latency"
+  check_trace: true
+```
+
+```yaml Production
+spicedb:
+  host: spicedb.prod.internal
+  port: 50051
+  pre_shared_key: "${SPICEDB_KEY}"  # From environment
+  consistency: "best_effort"
+  check_trace: false
+```
+
+```yaml Kubernetes
+spicedb:
+  host: spicedb-service.frontier.svc.cluster.local
+  port: 50051
+  pre_shared_key: "${SPICEDB_PRESHARED_KEY}"
+  consistency: "best_effort"
+```
+</CodeGroup>
+
+### SpiceDB Deployment
+
+#### Using Docker
+
+```bash
+docker run -d \
+  --name spicedb \
+  -p 50051:50051 \
+  -e SPICEDB_GRPC_PRESHARED_KEY="your-secure-key" \
+  authzed/spicedb serve \
+  --grpc-preshared-key "your-secure-key" \
+  --datastore-engine memory
+```
+
+#### Using Docker Compose
+
+```yaml docker-compose.yml
+version: '3.8'
+services:
+  spicedb:
+    image: authzed/spicedb:latest
+    command: serve --grpc-preshared-key "dev-key"
+    ports:
+      - "50051:50051"
+    environment:
+      - SPICEDB_GRPC_PRESHARED_KEY=dev-key
+      - SPICEDB_DATASTORE_ENGINE=postgres
+      - SPICEDB_DATASTORE_CONN_URI=postgres://spicedb:spicedb@postgres:5432/spicedb?sslmode=disable
+    depends_on:
+      - postgres
+  
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=spicedb
+      - POSTGRES_PASSWORD=spicedb
+      - POSTGRES_DB=spicedb
+    volumes:
+      - spicedb-data:/var/lib/postgresql/data
+
+volumes:
+  spicedb-data:
+```
+
+#### Production Deployment
+
+For production, SpiceDB should use PostgreSQL or CockroachDB as its datastore:
+
+```bash
+spicedb serve \
+  --grpc-preshared-key "${SPICEDB_KEY}" \
+  --datastore-engine postgres \
+  --datastore-conn-uri "postgres://spicedb:password@db:5432/spicedb?sslmode=require" \
+  --grpc-addr ":50051"
+```
+
+### Consistency Modes Explained
+
+| Mode | Use Case | Trade-offs |
+|------|----------|------------|
+| **full** | Financial transactions, critical operations | Highest consistency, slower performance |
+| **best_effort** | General application use | Balanced consistency and speed (recommended) |
+| **minimize_latency** | Read-heavy applications, dashboards | Fastest, may show slightly stale data |
+
+### Monitoring SpiceDB
+
+SpiceDB exposes metrics at `:9090/metrics` (Prometheus format). Key metrics:
+
+- `grpc_server_handled_total` - Total requests
+- `grpc_server_handling_seconds` - Request duration
+- `spicedb_datastore_read_namespaces_total` - Read operations
+
+## Complete Example
+
+<CodeGroup>
+```yaml config.yaml
+db:
+  driver: postgres
+  url: postgres://frontier:frontier@localhost:5432/frontier?sslmode=require
+  max_idle_conns: 10
+  max_open_conns: 50
+  conn_max_life_time: 30m
+  max_query_timeout: 2s
+
+spicedb:
+  host: spicedb.localhost
+  port: 50051
+  pre_shared_key: "your-secure-random-key"
+  consistency: "best_effort"
+  check_trace: false
+```
+
+```bash Environment Variables
+# PostgreSQL
+export FRONTIER_SERVICE_DB_URL="postgres://frontier:${DB_PASSWORD}@db.prod:5432/frontier?sslmode=verify-full"
+export FRONTIER_SERVICE_DB_MAX_OPEN_CONNS=100
+export FRONTIER_SERVICE_DB_MAX_IDLE_CONNS=20
+
+# SpiceDB
+export FRONTIER_SERVICE_SPICEDB_HOST="spicedb.prod.internal"
+export FRONTIER_SERVICE_SPICEDB_PORT=50051
+export FRONTIER_SERVICE_SPICEDB_PRE_SHARED_KEY="${SPICEDB_KEY}"
+export FRONTIER_SERVICE_SPICEDB_CONSISTENCY="best_effort"
+```
+</CodeGroup>
+
+## Troubleshooting
+
+### PostgreSQL Connection Issues
+
+**Problem:** `connection refused`
+```bash
+# Check PostgreSQL is running
+pg_isready -h localhost -p 5432
+
+# Test connection
+psql "postgres://frontier:password@localhost:5432/frontier"
+```
+
+**Problem:** `too many connections`
+- Reduce `max_open_conns` in Frontier config
+- Increase PostgreSQL `max_connections`
+- Check for connection leaks
+
+**Problem:** Slow queries
+```sql
+-- Find slow queries in PostgreSQL
+SELECT * FROM pg_stat_statements 
+ORDER BY mean_exec_time DESC 
+LIMIT 10;
+```
+
+### SpiceDB Connection Issues
+
+**Problem:** `unauthenticated`
+- Verify `pre_shared_key` matches SpiceDB configuration
+- Check SpiceDB logs for authentication errors
+
+**Problem:** `deadline exceeded`
+- Check network connectivity to SpiceDB
+- Verify SpiceDB is running and healthy
+- Consider adjusting `consistency` mode
+
+**Problem:** Permission checks are slow
+- Disable `check_trace` if enabled
+- Use `minimize_latency` consistency mode
+- Scale SpiceDB horizontally
+
+## See Also
+
+- [Server Configuration](/configuration/server)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [SpiceDB Documentation](https://authzed.com/docs)
+- [Database Migrations Guide](/guides/migrations)

@@ -1,0 +1,588 @@
+---
+title: Resource Management
+description: Manage resources and control access to your application entities
+---
+
+## Overview
+
+Resources are logical entities that represent any user-defined entity in your system that requires access control. Resources always belong to a project and are identified by a unique URN (Uniform Resource Name) or ID.
+
+<Note>
+  Resources in Frontier are flexible and can represent anything in your system: database instances, API endpoints, compute instances, storage buckets, or any custom entity that needs access control.
+</Note>
+
+## Resource Model
+
+<Tabs>
+  <Tab title="Model">
+    | Field | Type | Description |
+    |-------|------|-------------|
+    | **id** | uuid | Unique resource identifier |
+    | **name** | string | Resource name within the namespace. Example: `instance-1` |
+    | **urn** | string | Frontier Resource Name in format `frn:{project}:{namespace}:{name}`. Example: `frn:proj1:compute/instance:instance-1` |
+    | **projectId** | uuid | Project ID that the resource belongs to |
+    | **namespace** | string | Resource type namespace. Example: `compute/instance`, `database/postgres` |
+    | **principal** | string | The principal (user/service account) that created the resource |
+    | **metadata** | object | Key-value pairs for additional information |
+    | **createdAt** | timestamp | Creation timestamp |
+    | **updatedAt** | timestamp | Last update timestamp |
+  </Tab>
+  
+  <Tab title="JSON Example">
+    ```json
+    {
+      "resource": {
+        "id": "39aee58b-ea9a-474d-ad99-3f5e0e53d588",
+        "name": "prod-database",
+        "urn": "frn:production:database/postgres:prod-database",
+        "projectId": "4bcb528f-b397-47f6-8e1f-397d7ae88b32",
+        "namespace": "database/postgres",
+        "principal": "app/user:f4641672-cfdc-493f-95f0-c440515ad032",
+        "metadata": {
+          "region": "us-west-2",
+          "size": "large",
+          "version": "14.5"
+        },
+        "createdAt": "2023-08-10T11:58:03.607320Z",
+        "updatedAt": "2023-08-10T11:58:03.607320Z"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Resource URN Format
+
+Frontier Resource Names (URNs) follow a standardized format:
+
+```
+frn:{project_name}:{namespace}:{resource_name}
+```
+
+<CardGroup cols={3}>
+  <Card title="Project Name" icon="folder">
+    The name (slug) of the project containing the resource
+  </Card>
+  
+  <Card title="Namespace" icon="diagram-project">
+    Resource type, typically in format `service/type`
+  </Card>
+  
+  <Card title="Resource Name" icon="cube">
+    The unique name of the resource within the namespace
+  </Card>
+</CardGroup>
+
+### URN Examples
+
+```
+frn:production:compute/instance:web-server-01
+frn:staging:database/postgres:analytics-db
+frn:development:storage/bucket:user-uploads
+frn:shared:api/service:payment-gateway
+```
+
+## Namespaces
+
+Namespaces define resource types and must have appropriate permissions configured.
+
+<Tabs>
+  <Tab title="Built-in Namespaces">
+    Frontier provides built-in namespaces for common entities:
+    
+    - `app/organization` - Organizations
+    - `app/project` - Projects
+    - `app/group` - Groups
+    - `app/user` - Users
+    - `app/serviceuser` - Service accounts
+  </Tab>
+  
+  <Tab title="Custom Namespaces">
+    Define your own namespaces for application resources:
+    
+    - `compute/instance` - Compute instances
+    - `database/postgres` - PostgreSQL databases
+    - `database/mongodb` - MongoDB databases
+    - `storage/bucket` - Storage buckets
+    - `api/service` - API services
+    - `analytics/dashboard` - Analytics dashboards
+  </Tab>
+</Tabs>
+
+<Warning>
+  When working with custom resources, ensure the namespace has sufficient permissions (`create`, `update`, `delete`) configured. Without these permissions, Frontier cannot manage the resource lifecycle, especially during deletion.
+</Warning>
+
+## Creating a Resource
+
+Create a resource within a project with optional role assignments.
+
+<Steps>
+  <Step title="Define Resource Details">
+    Choose a name, namespace, and prepare metadata.
+  </Step>
+  
+  <Step title="Assign Initial Roles (Optional)">
+    Specify which users or groups should have access to the resource upon creation.
+  </Step>
+  
+  <Step title="Create via API">
+    Send a POST request to create the resource.
+  </Step>
+</Steps>
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/projects/{project_id}/resources' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data-raw '{
+    "name": "prod-database",
+    "namespace": "database/postgres",
+    "metadata": {
+      "region": "us-west-2",
+      "size": "large",
+      "environment": "production"
+    },
+    "relations": [
+      {
+        "subject": "user:john.doe@example.com",
+        "roleName": "owner"
+      },
+      {
+        "subject": "group:database-admins",
+        "roleName": "manager"
+      }
+    ]
+  }'
+```
+
+<Tabs>
+  <Tab title="Database Instance">
+    ```bash
+    curl -L -X POST 'https://frontier.example.com/v1beta1/projects/{project_id}/resources' \
+      -H 'Content-Type: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "name": "analytics-db",
+        "namespace": "database/postgres",
+        "metadata": {
+          "version": "14.5",
+          "region": "us-east-1",
+          "replicas": 2
+        }
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="Compute Instance">
+    ```bash
+    curl -L -X POST 'https://frontier.example.com/v1beta1/projects/{project_id}/resources' \
+      -H 'Content-Type: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "name": "web-server-01",
+        "namespace": "compute/instance",
+        "metadata": {
+          "instance_type": "t3.large",
+          "zone": "us-west-2a"
+        }
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="API Service">
+    ```bash
+    curl -L -X POST 'https://frontier.example.com/v1beta1/projects/{project_id}/resources' \
+      -H 'Content-Type: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "name": "payment-api",
+        "namespace": "api/service",
+        "metadata": {
+          "version": "v2",
+          "endpoints": 15
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  **Authorization Required**: User must have `resourcecreate` permission in the project namespace.
+</Note>
+
+## Listing Resources
+
+### List Project Resources
+
+Retrieve all resources within a specific project.
+
+```bash
+curl -L -X GET 'https://frontier.example.com/v1beta1/projects/{project_id}/resources' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+### List All Resources (Admin)
+
+Retrieve all resources across all projects (requires admin access).
+
+```bash
+curl -L -X GET 'https://frontier.example.com/v1beta1/admin/resources' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+### Filter by Namespace
+
+Retrieve resources of a specific type.
+
+```bash
+curl -L -X GET 'https://frontier.example.com/v1beta1/projects/{project_id}/resources?namespace=database/postgres' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+## Getting Resource Details
+
+Retrieve detailed information about a specific resource.
+
+<Tabs>
+  <Tab title="By Resource ID">
+    ```bash
+    curl -L -X GET 'https://frontier.example.com/v1beta1/projects/{project_id}/resources/{resource_id}' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>'
+    ```
+  </Tab>
+  
+  <Tab title="By URN">
+    ```bash
+    curl -L -X GET 'https://frontier.example.com/v1beta1/resources/urn:{urn}' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>'
+    ```
+    
+    Example:
+    ```bash
+    curl -L -X GET 'https://frontier.example.com/v1beta1/resources/urn:frn:production:database/postgres:analytics-db' \
+      -H 'Authorization: Bearer <access_token>'
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  **Authorization Required**: User must have `get` or appropriate permission on the resource.
+</Note>
+
+## Updating a Resource
+
+Modify resource details such as name or metadata.
+
+```bash
+curl -L -X PUT 'https://frontier.example.com/v1beta1/projects/{project_id}/resources/{resource_id}' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data-raw '{
+    "name": "prod-database-primary",
+    "metadata": {
+      "region": "us-west-2",
+      "size": "xlarge",
+      "environment": "production",
+      "replicas": 3
+    }
+  }'
+```
+
+<Note>
+  **Authorization Required**: User must have `update` permission on the resource.
+</Note>
+
+## Managing Resource Access
+
+### Checking Resource Permissions
+
+Verify if a user has a specific permission on a resource.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/check' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data-raw '{
+    "resource": "frn:production:database/postgres:prod-database",
+    "permission": "get"
+  }'
+```
+
+### Granting Resource Access
+
+Create a policy to grant a user or group access to a resource.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/policies' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data-raw '{
+    "roleId": "database_viewer",
+    "resource": "frn:production:database/postgres:prod-database",
+    "principal": "app/user:2e73f4a2-3763-4dc6-a00e-7a9aebeaa971"
+  }'
+```
+
+<Tabs>
+  <Tab title="User Access">
+    ```bash
+    # Grant user read-only access to a database
+    curl -L -X POST 'https://frontier.example.com/v1beta1/policies' \
+      -H 'Content-Type: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "roleId": "database_viewer",
+        "resource": "database/postgres:analytics-db",
+        "principal": "app/user:john.doe@example.com"
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="Group Access">
+    ```bash
+    # Grant group full access to a compute instance
+    curl -L -X POST 'https://frontier.example.com/v1beta1/policies' \
+      -H 'Content-Type: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "roleId": "compute_owner",
+        "resource": "compute/instance:web-server-01",
+        "principal": "app/group:devops-team"
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="Service Account">
+    ```bash
+    # Grant service account access to an API service
+    curl -L -X POST 'https://frontier.example.com/v1beta1/policies' \
+      -H 'Content-Type: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "roleId": "api_consumer",
+        "resource": "api/service:payment-api",
+        "principal": "app/serviceuser:backend-service"
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+### Listing Resource Access
+
+View all policies and access grants for a resource.
+
+```bash
+curl -L -X GET 'https://frontier.example.com/v1beta1/resources/{resource_id}/policies' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+### Revoking Resource Access
+
+Remove a policy to revoke access.
+
+```bash
+curl -L -X DELETE 'https://frontier.example.com/v1beta1/policies/{policy_id}' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+## Deleting a Resource
+
+Permanently delete a resource and all associated policies.
+
+```bash
+curl -L -X DELETE 'https://frontier.example.com/v1beta1/projects/{project_id}/resources/{resource_id}' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+<Warning>
+  Ensure the `delete` permission is configured for the resource namespace and granted to the caller. Without proper permissions, deletion will fail.
+</Warning>
+
+<Note>
+  **Authorization Required**: User must have `delete` permission on the resource.
+</Note>
+
+## Access Control Patterns
+
+<Tabs>
+  <Tab title="Owner Pattern">
+    The creator gets full ownership of the resource.
+    
+    ```json
+    {
+      "name": "my-database",
+      "namespace": "database/postgres",
+      "relations": [
+        {
+          "subject": "user:creator@example.com",
+          "roleName": "owner"
+        }
+      ]
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Team Pattern">
+    Multiple teams get different access levels.
+    
+    ```json
+    {
+      "name": "shared-api",
+      "namespace": "api/service",
+      "relations": [
+        {
+          "subject": "group:backend-team",
+          "roleName": "manager"
+        },
+        {
+          "subject": "group:frontend-team",
+          "roleName": "viewer"
+        },
+        {
+          "subject": "group:devops-team",
+          "roleName": "owner"
+        }
+      ]
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Service Pattern">
+    Service accounts get programmatic access.
+    
+    ```json
+    {
+      "name": "metrics-db",
+      "namespace": "database/postgres",
+      "relations": [
+        {
+          "subject": "serviceuser:monitoring-service",
+          "roleName": "viewer"
+        },
+        {
+          "subject": "serviceuser:backup-service",
+          "roleName": "manager"
+        }
+      ]
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Resource Lifecycle
+
+<Steps>
+  <Step title="Creation">
+    Resource is created within a project with a unique name and namespace. Initial access is granted to the creator and any specified relations.
+  </Step>
+  
+  <Step title="Access Management">
+    Policies are created and updated to grant or revoke access to users, groups, and service accounts.
+  </Step>
+  
+  <Step title="Updates">
+    Resource metadata can be updated as needed. The URN remains constant.
+  </Step>
+  
+  <Step title="Deletion">
+    Resource is permanently deleted along with all associated policies. Access is immediately revoked for all principals.
+  </Step>
+</Steps>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Meaningful Names" icon="tag">
+    Use descriptive names that indicate the resource's purpose. Include environment or version information when relevant.
+  </Card>
+  
+  <Card title="Consistent Namespaces" icon="diagram-project">
+    Establish namespace conventions early. Use hierarchical naming like `service/type` for clarity.
+  </Card>
+  
+  <Card title="Metadata Usage" icon="database">
+    Store relevant operational data in metadata. Include owner information, cost centers, or technical details.
+  </Card>
+  
+  <Card title="Least Privilege" icon="shield">
+    Grant minimum necessary permissions. Start with viewer roles and elevate only when needed.
+  </Card>
+</CardGroup>
+
+## Integration Patterns
+
+<Tabs>
+  <Tab title="Resource Creation Hook">
+    When your application creates a new resource:
+    
+    ```bash
+    # 1. Create resource in your system
+    # 2. Register with Frontier
+    curl -L -X POST 'https://frontier.example.com/v1beta1/projects/{project_id}/resources' \
+      --data '{
+        "name": "new-database",
+        "namespace": "database/postgres",
+        "relations": [
+          {"subject": "user:{creator_id}", "roleName": "owner"}
+        ]
+      }'
+    # 3. Return resource details to user
+    ```
+  </Tab>
+  
+  <Tab title="Access Check">
+    Before allowing resource access:
+    
+    ```bash
+    # Check if user has permission
+    curl -L -X POST 'https://frontier.example.com/v1beta1/check' \
+      --data '{
+        "resource": "database/postgres:{db_name}",
+        "permission": "read"
+      }'
+    # If authorized, allow access
+    # If denied, return 403 Forbidden
+    ```
+  </Tab>
+  
+  <Tab title="Resource Cleanup">
+    When deleting a resource:
+    
+    ```bash
+    # 1. Verify user has delete permission
+    # 2. Delete from your system
+    # 3. Remove from Frontier
+    curl -L -X DELETE 'https://frontier.example.com/v1beta1/projects/{project_id}/resources/{resource_id}'
+    # 4. All policies are automatically removed
+    ```
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Configure Policies" icon="shield" href="/authorization/policies">
+    Set up fine-grained access control
+  </Card>
+  
+  <Card title="Manage Projects" icon="folder" href="/organizations/projects">
+    Organize resources with projects
+  </Card>
+  
+  <Card title="Authorization Guide" icon="lock" href="/authorization/overview">
+    Learn about Frontier's authorization model
+  </Card>
+</CardGroup>

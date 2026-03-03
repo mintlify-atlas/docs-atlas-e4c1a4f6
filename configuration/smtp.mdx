@@ -1,0 +1,570 @@
+---
+title: SMTP Configuration
+---
+
+Frontier uses SMTP (Simple Mail Transfer Protocol) to send emails for authentication (OTPs, magic links), invitations, and notifications. This guide covers configuring Frontier's mailer service.
+
+## Overview
+
+The mailer service supports:
+- One-time password (OTP) delivery
+- Magic link authentication
+- Organization invitations
+- User notifications
+- Custom email templates
+
+## Configuration
+
+### Basic Settings
+
+<ParamField path="app.mailer.smtp_host" type="string" required>
+  SMTP server hostname or IP address.
+  
+  ```yaml
+  app:
+    mailer:
+      smtp_host: smtp.gmail.com
+  ```
+</ParamField>
+
+<ParamField path="app.mailer.smtp_port" type="integer" required>
+  SMTP server port number.
+  
+  **Common ports:**
+  - `587` - STARTTLS (recommended)
+  - `465` - SSL/TLS
+  - `25` - Unencrypted (not recommended)
+  
+  ```yaml
+  app:
+    mailer:
+      smtp_port: 587
+  ```
+</ParamField>
+
+<ParamField path="app.mailer.smtp_username" type="string" required>
+  Username for SMTP authentication.
+  
+  ```yaml
+  app:
+    mailer:
+      smtp_username: "notifications@example.com"
+  ```
+</ParamField>
+
+<ParamField path="app.mailer.smtp_password" type="string" required>
+  Password or app-specific password for SMTP authentication.
+  
+  ```yaml
+  app:
+    mailer:
+      smtp_password: "your-smtp-password"
+  ```
+  
+  <Warning>
+  Use environment variables for sensitive credentials. Never commit passwords to version control.
+  </Warning>
+</ParamField>
+
+<ParamField path="app.mailer.smtp_insecure" type="boolean" default="true">
+  Skip TLS certificate verification. Set to `false` for production.
+  
+  ```yaml
+  app:
+    mailer:
+      smtp_insecure: false  # Verify TLS certificates in production
+  ```
+</ParamField>
+
+<ParamField path="app.mailer.smtp_tls_policy" type="string" default="mandatory">
+  TLS policy for SMTP connection.
+  
+  **Options:**
+  - `mandatory` - Always use STARTTLS (recommended)
+  - `opportunistic` - Use STARTTLS if available, otherwise unencrypted
+  - `none` - Never use STARTTLS (not recommended)
+  
+  ```yaml
+  app:
+    mailer:
+      smtp_tls_policy: "mandatory"
+  ```
+</ParamField>
+
+### Email Headers
+
+<ParamField path="app.mailer.headers" type="object" required>
+  Email headers including sender information.
+  
+  ```yaml
+  app:
+    mailer:
+      headers:
+        from: "noreply@example.com"
+        # Optional additional headers:
+        reply-to: "support@example.com"
+        x-mailer: "Frontier"
+  ```
+  
+  The `from` header is required and must be an email address authorized by your SMTP provider.
+</ParamField>
+
+## Provider-Specific Configuration
+
+### Gmail / Google Workspace
+
+For Gmail or Google Workspace SMTP:
+
+<CodeGroup>
+```yaml Gmail with App Password
+app:
+  mailer:
+    smtp_host: smtp.gmail.com
+    smtp_port: 587
+    smtp_username: "your-email@gmail.com"
+    smtp_password: "your-app-password"  # Not your regular password
+    smtp_insecure: false
+    smtp_tls_policy: "mandatory"
+    headers:
+      from: "your-email@gmail.com"
+```
+
+```yaml Google Workspace
+app:
+  mailer:
+    smtp_host: smtp-relay.gmail.com
+    smtp_port: 587
+    smtp_username: "notifications@yourdomain.com"
+    smtp_password: "your-app-password"
+    smtp_insecure: false
+    smtp_tls_policy: "mandatory"
+    headers:
+      from: "notifications@yourdomain.com"
+```
+</CodeGroup>
+
+**Setup Steps:**
+
+1. Enable 2-factor authentication on your Google account
+2. Generate an [App Password](https://myaccount.google.com/apppasswords)
+3. Use the app password in your Frontier configuration
+
+**Google Workspace SMTP Relay:**
+
+For Google Workspace, you can use SMTP relay which doesn't require authentication:
+
+1. Go to Google Admin Console → Apps → Google Workspace → Gmail → Routing
+2. Configure SMTP relay service
+3. Allow your application's IP addresses
+4. Use `smtp_username` and `smtp_password` as empty strings or omit them
+
+**Reference:** [Google Workspace SMTP Guide](https://support.google.com/a/answer/176600)
+
+### Amazon SES
+
+For AWS Simple Email Service:
+
+<CodeGroup>
+```yaml Amazon SES
+app:
+  mailer:
+    smtp_host: email-smtp.us-east-1.amazonaws.com
+    smtp_port: 587
+    smtp_username: "AKIAIOSFODNN7EXAMPLE"  # SMTP username from SES
+    smtp_password: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"  # SMTP password
+    smtp_insecure: false
+    smtp_tls_policy: "mandatory"
+    headers:
+      from: "notifications@example.com"
+```
+
+```yaml Environment Variables
+export FRONTIER_SERVICE_APP_MAILER_SMTP_HOST="email-smtp.us-east-1.amazonaws.com"
+export FRONTIER_SERVICE_APP_MAILER_SMTP_PORT=587
+export FRONTIER_SERVICE_APP_MAILER_SMTP_USERNAME="${AWS_SES_SMTP_USERNAME}"
+export FRONTIER_SERVICE_APP_MAILER_SMTP_PASSWORD="${AWS_SES_SMTP_PASSWORD}"
+export FRONTIER_SERVICE_APP_MAILER_HEADERS_FROM="notifications@example.com"
+```
+</CodeGroup>
+
+**Setup Steps:**
+
+1. Verify your domain or email address in SES
+2. Request production access (remove sandbox limitations)
+3. Create SMTP credentials in SES console
+4. Use the region-specific SMTP endpoint
+
+**Available Regions:**
+- `email-smtp.us-east-1.amazonaws.com` (N. Virginia)
+- `email-smtp.us-west-2.amazonaws.com` (Oregon)
+- `email-smtp.eu-west-1.amazonaws.com` (Ireland)
+- See [AWS SES Regions](https://docs.aws.amazon.com/general/latest/gr/ses.html)
+
+**Reference:** [Amazon SES SMTP Guide](https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html)
+
+### Mailgun
+
+For Mailgun SMTP:
+
+```yaml Mailgun
+app:
+  mailer:
+    smtp_host: smtp.mailgun.org
+    smtp_port: 587
+    smtp_username: "postmaster@mg.example.com"
+    smtp_password: "your-mailgun-smtp-password"
+    smtp_insecure: false
+    smtp_tls_policy: "mandatory"
+    headers:
+      from: "notifications@mg.example.com"
+```
+
+**Setup Steps:**
+
+1. Add and verify your domain in Mailgun
+2. Get SMTP credentials from Mailgun dashboard
+3. Use the SMTP credentials (not API key) in configuration
+
+**Reference:** [Mailgun SMTP Guide](https://www.miniorange.com/iam/content-library/smtp-gateways/setup-mailgun-as-smtp)
+
+### Postmark
+
+For Postmark SMTP:
+
+```yaml Postmark
+app:
+  mailer:
+    smtp_host: smtp.postmarkapp.com
+    smtp_port: 587
+    smtp_username: "your-server-api-token"  # Use your Server API Token
+    smtp_password: "your-server-api-token"  # Same as username
+    smtp_insecure: false
+    smtp_tls_policy: "mandatory"
+    headers:
+      from: "notifications@example.com"
+```
+
+**Setup Steps:**
+
+1. Create a server in Postmark
+2. Verify your sender signature or domain
+3. Use your Server API Token as both username and password
+
+**Reference:** [Postmark SMTP Guide](https://postmarkapp.com/developer/user-guide/send-email-with-smtp)
+
+### SendGrid
+
+For SendGrid SMTP:
+
+```yaml SendGrid
+app:
+  mailer:
+    smtp_host: smtp.sendgrid.net
+    smtp_port: 587
+    smtp_username: "apikey"  # Literal string "apikey"
+    smtp_password: "SG.xxxxxxxxxxxxxxxxxxxx"  # Your SendGrid API key
+    smtp_insecure: false
+    smtp_tls_policy: "mandatory"
+    headers:
+      from: "notifications@example.com"
+```
+
+**Setup Steps:**
+
+1. Verify your sender identity in SendGrid
+2. Create an API key with "Mail Send" permissions
+3. Use the literal string `"apikey"` as username
+4. Use your API key as password
+
+### Custom SMTP Server
+
+For self-hosted or custom SMTP servers:
+
+```yaml Custom SMTP
+app:
+  mailer:
+    smtp_host: mail.example.com
+    smtp_port: 587
+    smtp_username: "frontier@example.com"
+    smtp_password: "your-password"
+    smtp_insecure: false
+    smtp_tls_policy: "mandatory"
+    headers:
+      from: "notifications@example.com"
+```
+
+## Complete Examples
+
+<CodeGroup>
+```yaml Production (Gmail)
+app:
+  mailer:
+    smtp_host: smtp.gmail.com
+    smtp_port: 587
+    smtp_username: "notifications@example.com"
+    smtp_password: "${SMTP_PASSWORD}"  # From environment
+    smtp_insecure: false
+    smtp_tls_policy: "mandatory"
+    headers:
+      from: "notifications@example.com"
+      reply-to: "support@example.com"
+```
+
+```yaml Production (AWS SES)
+app:
+  mailer:
+    smtp_host: email-smtp.us-west-2.amazonaws.com
+    smtp_port: 587
+    smtp_username: "${AWS_SES_USERNAME}"
+    smtp_password: "${AWS_SES_PASSWORD}"
+    smtp_insecure: false
+    smtp_tls_policy: "mandatory"
+    headers:
+      from: "noreply@example.com"
+```
+
+```yaml Development (Mailhog)
+app:
+  mailer:
+    smtp_host: localhost
+    smtp_port: 1025
+    smtp_username: ""
+    smtp_password: ""
+    smtp_insecure: true
+    smtp_tls_policy: "none"
+    headers:
+      from: "dev@localhost"
+```
+</CodeGroup>
+
+## Testing Email Configuration
+
+After configuring SMTP, test email delivery:
+
+### Using Frontier API
+
+Trigger a test email by initiating authentication:
+
+```bash
+# Request OTP
+curl -X POST http://localhost:8000/v1beta1/auth/otp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com"
+  }'
+```
+
+### Using Development Tools
+
+For development, use local SMTP testing tools:
+
+**MailHog** (captures emails locally):
+
+```bash
+# Run MailHog
+docker run -d -p 1025:1025 -p 8025:8025 mailhog/mailhog
+
+# Configure Frontier to use MailHog
+app:
+  mailer:
+    smtp_host: localhost
+    smtp_port: 1025
+    smtp_username: ""
+    smtp_password: ""
+    smtp_insecure: true
+    smtp_tls_policy: "none"
+
+# View emails at http://localhost:8025
+```
+
+**Mailtrap** (email testing service):
+
+```yaml
+app:
+  mailer:
+    smtp_host: smtp.mailtrap.io
+    smtp_port: 587
+    smtp_username: "your-mailtrap-username"
+    smtp_password: "your-mailtrap-password"
+    smtp_tls_policy: "mandatory"
+```
+
+## Email Templates
+
+Email templates are configured in the authentication section:
+
+### OTP Email Template
+
+```yaml
+app:
+  authentication:
+    mail_otp:
+      subject: "Your Login Code - Acme Corp"
+      body: |
+        <html>
+        <body>
+          <h1>Login Code</h1>
+          <p>Use this code to login:</p>
+          <h2 style="color: #007bff;">{{.Otp}}</h2>
+          <p>This code expires in 15 minutes.</p>
+        </body>
+        </html>
+      validity: "15m"
+```
+
+### Magic Link Email Template
+
+```yaml
+app:
+  authentication:
+    mail_link:
+      subject: "Your Login Link - Acme Corp"
+      body: |
+        <html>
+        <body>
+          <h1>Login Link</h1>
+          <p>Click the button below to login:</p>
+          <a href="{{.Link}}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Login</a>
+          <p>Or copy this link: {{.Link}}</p>
+          <p>This link expires in 15 minutes.</p>
+        </body>
+        </html>
+      validity: "15m"
+```
+
+### Invitation Email Template
+
+```yaml
+app:
+  authentication:
+    # Configure via preferences
+    # See Platform Preferences documentation
+```
+
+Invitation templates are managed through [Preferences](/configuration/preferences).
+
+## Troubleshooting
+
+### Common Issues
+
+**Problem:** `connection refused`
+
+```
+Solution:
+- Verify smtp_host and smtp_port are correct
+- Check firewall rules allow outbound connections
+- Test connectivity: telnet smtp.example.com 587
+```
+
+**Problem:** `authentication failed`
+
+```
+Solution:
+- Verify smtp_username and smtp_password are correct
+- For Gmail: ensure you're using App Password, not regular password
+- Check if your account requires 2FA
+- Verify SMTP credentials haven't expired
+```
+
+**Problem:** `certificate verification failed`
+
+```
+Solution:
+- Set smtp_insecure: false and smtp_tls_policy: "mandatory"
+- Verify your system's CA certificates are up to date
+- Check if SMTP server certificate is valid
+```
+
+**Problem:** `recipient rejected` or `from address not verified`
+
+```
+Solution:
+- Verify sender email in your SMTP provider (SES, SendGrid, etc.)
+- Check SPF/DKIM records are configured
+- Ensure 'from' address matches verified domain
+- For SES: request production access to remove sandbox
+```
+
+**Problem:** Emails going to spam
+
+```
+Solution:
+- Configure SPF, DKIM, and DMARC records
+- Use verified domain in 'from' address
+- Add proper reply-to header
+- Avoid spam trigger words in subject/body
+- Monitor sender reputation
+```
+
+### Debug SMTP Connection
+
+Test SMTP connection manually:
+
+```bash
+# Test connection
+openssl s_client -connect smtp.gmail.com:587 -starttls smtp
+
+# Or using telnet
+telnet smtp.gmail.com 587
+
+# Expected response:
+220 smtp.gmail.com ESMTP ...
+```
+
+### Enable Debug Logging
+
+Increase log level to debug SMTP issues:
+
+```yaml
+log:
+  level: debug
+```
+
+Then check logs for detailed SMTP communication.
+
+## Security Best Practices
+
+1. **Use App-Specific Passwords**
+   - Generate app passwords for Gmail/Google Workspace
+   - Don't use main account passwords
+
+2. **Store Credentials Securely**
+   ```yaml
+   app:
+     mailer:
+       smtp_password: "${SMTP_PASSWORD}"  # From environment
+   ```
+
+3. **Enable TLS**
+   ```yaml
+   app:
+     mailer:
+       smtp_tls_policy: "mandatory"
+       smtp_insecure: false
+   ```
+
+4. **Verify Certificates**
+   - Never use `smtp_insecure: true` in production
+   - Keep system CA certificates updated
+
+5. **Configure SPF/DKIM**
+   - Add SPF record to your DNS
+   - Configure DKIM signing with your provider
+   - Implement DMARC policy
+
+6. **Rate Limiting**
+   - Configure rate limits in your SMTP provider
+   - Monitor email sending quotas
+   - Implement application-level rate limiting
+
+7. **Monitor Bounce Rates**
+   - Track email delivery failures
+   - Remove invalid addresses
+   - Monitor spam complaints
+
+## See Also
+
+- [Server Configuration](/configuration/server)
+- [Authentication Guide](/guides/authentication)
+- [Platform Preferences](/configuration/preferences)
+- [Email Template Customization](/guides/customization)

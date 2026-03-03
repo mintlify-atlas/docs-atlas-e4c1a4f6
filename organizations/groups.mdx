@@ -1,0 +1,522 @@
+---
+title: Group Management
+description: Manage groups and simplify user access control
+---
+
+## Overview
+
+Groups are collections of users within an organization that simplify access management. Instead of assigning permissions to individual users, you can assign permissions to a group and manage membership separately. This approach scales better and makes access management more maintainable.
+
+<Note>
+  Groups always belong to an organization. Users can be members of multiple groups within the same organization.
+</Note>
+
+## Group Model
+
+<Tabs>
+  <Tab title="Model">
+    | Field | Type | Description |
+    |-------|------|-------------|
+    | **id** | uuid | Unique group identifier |
+    | **name** | string | Unique slug for the group. Must contain only alphanumeric characters, dashes, and underscores. Example: `data-engineering` |
+    | **title** | string | Human-readable display name. Can contain any UTF-8 character. Example: `Data Engineering Team` |
+    | **orgId** | uuid | Organization ID that the group belongs to |
+    | **metadata** | object | Key-value pairs for additional information. Validated against Group MetaSchema |
+    | **state** | string | Current state: `enabled` or `disabled` |
+    | **createdAt** | timestamp | Creation timestamp |
+    | **updatedAt** | timestamp | Last update timestamp |
+    | **memberCount** | integer | Number of users in the group (transient field) |
+  </Tab>
+  
+  <Tab title="JSON Example">
+    ```json
+    {
+      "group": {
+        "id": "2105beab-5d04-4fc5-b0ec-8d6f60b67ab2",
+        "name": "data-engineering",
+        "title": "Data Engineering Team",
+        "orgId": "4eb3c3b4-962b-4b45-b55b-4c07d3810ca8",
+        "metadata": {
+          "description": "Team responsible for data pipelines and infrastructure",
+          "labels": {
+            "department": "engineering",
+            "team": "data"
+          }
+        },
+        "state": "enabled",
+        "createdAt": "2022-12-14T10:22:14.394120Z",
+        "updatedAt": "2022-12-14T10:25:34.890645Z",
+        "memberCount": 12
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Roles and Permissions
+
+Groups have two predefined roles:
+
+| Role | Permissions | Description |
+|------|-------------|-------------|
+| **Group Owner** | Full control | Can manage group settings, add/remove members, and delete the group |
+| **Group Member** | Standard member | Member of the group with access based on group's assigned permissions |
+
+<Tip>
+  Group permissions work hierarchically. When a group is granted access to a project or resource, all group members inherit that access.
+</Tip>
+
+## Creating a Group
+
+Create a new group within an organization to organize users.
+
+<Steps>
+  <Step title="Identify the Organization">
+    Obtain the organization ID where you want to create the group.
+  </Step>
+  
+  <Step title="Prepare Group Details">
+    Choose a unique name and prepare metadata describing the group's purpose.
+  </Step>
+  
+  <Step title="Create via API">
+    Send a POST request to create the group.
+  </Step>
+</Steps>
+
+<Tabs>
+  <Tab title="HTTP">
+    ```bash
+    curl -L -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/groups' \
+      -H 'Content-Type: application/json' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "name": "data-engineering",
+        "title": "Data Engineering Team",
+        "metadata": {
+          "description": "Team responsible for data pipelines and infrastructure",
+          "labels": {
+            "department": "engineering",
+            "team": "data"
+          }
+        }
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="CLI">
+    ```bash
+    frontier group create --file group.yaml
+    ```
+    
+    Where `group.yaml` contains:
+    ```yaml
+    name: data-engineering
+    title: Data Engineering Team
+    orgId: 4eb3c3b4-962b-4b45-b55b-4c07d3810ca8
+    metadata:
+      description: Team responsible for data pipelines
+      labels:
+        department: engineering
+    ```
+  </Tab>
+  
+  <Tab title="Admin Portal">
+    1. Navigate to **Admin Portal > Groups** from the sidebar
+    2. Click **+ New Group** in the top right
+    3. Select the organization
+    4. Enter group details:
+       - Name (slug)
+       - Title
+       - Description
+       - Custom metadata
+    5. Click **Add Group**
+  </Tab>
+</Tabs>
+
+<Note>
+  **Authorization Required**: User must have `app_organization_groupcreate` permission or be an Organization Admin/Manager.
+</Note>
+
+## Listing Groups
+
+### List Organization Groups
+
+Retrieve all groups within a specific organization.
+
+<Tabs>
+  <Tab title="HTTP">
+    ```bash
+    curl -L -X GET 'https://frontier.example.com/v1beta1/organizations/{org_id}/groups' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>'
+    ```
+  </Tab>
+  
+  <Tab title="CLI">
+    ```bash
+    frontier group list --org {org_id}
+    ```
+  </Tab>
+</Tabs>
+
+### List All Groups (Admin)
+
+Retrieve all groups across all organizations (requires admin access).
+
+```bash
+curl -L -X GET 'https://frontier.example.com/v1beta1/admin/groups' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+## Getting Group Details
+
+Retrieve detailed information about a specific group.
+
+<Tabs>
+  <Tab title="HTTP">
+    ```bash
+    curl -L -X GET 'https://frontier.example.com/v1beta1/organizations/{org_id}/groups/{group_id}' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>'
+    ```
+  </Tab>
+  
+  <Tab title="CLI">
+    ```bash
+    frontier group view {group_id} --metadata
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  **Authorization Required**: User must have access to the organization to view its groups.
+</Note>
+
+## Updating a Group
+
+Modify group details such as title or metadata.
+
+<Tabs>
+  <Tab title="HTTP">
+    ```bash
+    curl -L -X PUT 'https://frontier.example.com/v1beta1/organizations/{org_id}/groups/{group_id}' \
+      -H 'Content-Type: application/json' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>' \
+      --data-raw '{
+        "title": "Data Engineering & Analytics",
+        "metadata": {
+          "description": "Combined data engineering and analytics team",
+          "labels": {
+            "department": "engineering",
+            "team": "data-analytics"
+          }
+        }
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="CLI">
+    ```bash
+    frontier group edit {group_id} --file updated-group.yaml
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  **Authorization Required**: User must be a Group Owner or Organization Admin.
+</Note>
+
+## Managing Group Members
+
+### Adding Users to a Group
+
+Add users to a group to grant them the group's permissions. Users must already exist in the organization.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/groups/{group_id}/users' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data-raw '{
+    "userIds": [
+      "2e73f4a2-3763-4dc6-a00e-7a9aebeaa971",
+      "8f92b4c3-9a81-4d2e-b5c6-1e8f7d9c2b4a"
+    ]
+  }'
+```
+
+<Note>
+  If a user is already a member of the group, no action is taken for that user. The API accepts multiple user IDs in a single request.
+</Note>
+
+### Listing Group Members
+
+Retrieve all users who are members of a group.
+
+```bash
+curl -L -X GET 'https://frontier.example.com/v1beta1/organizations/{org_id}/groups/{group_id}/users' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+### Listing Group Members with Role Filter
+
+Filter group members by their role within the group (owner or member).
+
+```bash
+curl -L -X GET 'https://frontier.example.com/v1beta1/organizations/{org_id}/groups/{group_id}/relations?subjectType=user&role=member' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+<Tabs>
+  <Tab title="List Owners">
+    ```bash
+    curl -L -X GET 'https://frontier.example.com/v1beta1/organizations/{org_id}/groups/{group_id}/relations?subjectType=user&role=owner' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>'
+    ```
+  </Tab>
+  
+  <Tab title="List Members">
+    ```bash
+    curl -L -X GET 'https://frontier.example.com/v1beta1/organizations/{org_id}/groups/{group_id}/relations?subjectType=user&role=member' \
+      -H 'Accept: application/json' \
+      -H 'Authorization: Bearer <access_token>'
+    ```
+  </Tab>
+</Tabs>
+
+### Removing Users from a Group
+
+Remove a user from a group. The user loses access granted through this group but retains any direct permissions.
+
+```bash
+curl -L -X DELETE 'https://frontier.example.com/v1beta1/organizations/{org_id}/groups/{group_id}/users/{user_id}' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+<Note>
+  **Authorization Required**: User must be a Group Owner or Organization Admin.
+</Note>
+
+## Assigning Group Permissions
+
+### Grant Project Access to Group
+
+Assign a role to a group at the project level. All group members inherit this access.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/projects/{project_id}/policies' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data-raw '{
+    "roleId": "app_project_viewer",
+    "resource": "app/project:{project_id}",
+    "principal": "app/group:{group_id}"
+  }'
+```
+
+### Grant Resource Access to Group
+
+Assign a role to a group for a specific resource.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/resources/{resource_id}/policies' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data-raw '{
+    "roleId": "resource_owner",
+    "resource": "compute/instance:{resource_id}",
+    "principal": "app/group:{group_id}"
+  }'
+```
+
+<Tip>
+  Using groups for permissions management:
+  - Simplifies access control by managing group membership instead of individual permissions
+  - Scales better as your organization grows
+  - Makes it easier to audit who has access to what
+  - Allows role-based changes without touching individual user permissions
+</Tip>
+
+## Use Cases
+
+<Tabs>
+  <Tab title="Department Teams">
+    ```
+    Organization: Tech Corp
+    ├── Group: Engineering
+    │   ├── Access: All Engineering Projects (Viewer)
+    │   └── Members: All engineers
+    ├── Group: Product
+    │   ├── Access: Product Projects (Manager)
+    │   └── Members: Product managers
+    └── Group: DevOps
+        ├── Access: Infrastructure Projects (Owner)
+        └── Members: DevOps engineers
+    ```
+  </Tab>
+  
+  <Tab title="Project Teams">
+    ```
+    Organization: SaaS Company
+    Project: Mobile App
+    ├── Group: Mobile Developers
+    │   └── Role: app_project_manager
+    ├── Group: QA Team
+    │   └── Role: app_project_viewer
+    └── Group: Product Owners
+        └── Role: app_project_owner
+    ```
+  </Tab>
+  
+  <Tab title="Access Levels">
+    ```
+    Organization: Data Platform
+    ├── Group: Data Admins
+    │   └── Access: All resources (Owner)
+    ├── Group: Data Engineers
+    │   └── Access: Pipeline resources (Manager)
+    ├── Group: Data Analysts
+    │   └── Access: Read-only dashboards (Viewer)
+    └── Group: External Contractors
+        └── Access: Specific project only (Viewer)
+    ```
+  </Tab>
+</Tabs>
+
+## State Management
+
+### Disabling a Group
+
+Temporarily suspend a group without deleting it. Group members lose access granted through the group.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/groups/{group_id}/disable' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data '{}'
+```
+
+<Note>
+  **Authorization Required**: User must be a Group Owner or Organization Admin.
+</Note>
+
+### Enabling a Group
+
+Restore access to a disabled group.
+
+```bash
+curl -L -X POST 'https://frontier.example.com/v1beta1/organizations/{org_id}/groups/{group_id}/enable' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  --data '{}'
+```
+
+<Tip>
+  Disabling a group:
+  - Does not delete the group or remove members
+  - Temporarily revokes all access granted through the group
+  - Useful for temporary team changes or security holds
+  - Can be reversed by re-enabling
+</Tip>
+
+## Deleting a Group
+
+Permanently delete a group and remove all associated policies.
+
+```bash
+curl -L -X DELETE 'https://frontier.example.com/v1beta1/organizations/{org_id}/groups/{group_id}' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <access_token>'
+```
+
+<Warning>
+  **This action cannot be undone!**
+  
+  Deleting a group:
+  - Permanently removes all policies where the group is the principal
+  - Removes all group memberships
+  - Does NOT delete user accounts
+  
+  Users who had access only through this group will lose that access.
+</Warning>
+
+<Note>
+  **Authorization Required**: User must be a Group Owner or Organization Admin.
+</Note>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Descriptive Names" icon="tag">
+    Use clear names that indicate the group's purpose, like `engineering-team`, `product-managers`, or `external-contractors`.
+  </Card>
+  
+  <Card title="Granular Groups" icon="layer-group">
+    Create focused groups for specific purposes rather than one large group. This provides better access control.
+  </Card>
+  
+  <Card title="Regular Audits" icon="clipboard-check">
+    Periodically review group memberships to ensure users still need access and remove those who don't.
+  </Card>
+  
+  <Card title="Document Purpose" icon="file-lines">
+    Use metadata to document the group's purpose, owner, and intended use for better governance.
+  </Card>
+</CardGroup>
+
+## Common Patterns
+
+<Steps>
+  <Step title="Create Role-Based Groups">
+    Create groups that mirror your organizational roles (e.g., `developers`, `managers`, `viewers`).
+  </Step>
+  
+  <Step title="Assign Project Access">
+    Grant each group appropriate access to projects they need to work with.
+  </Step>
+  
+  <Step title="Manage Members">
+    Add users to groups based on their role. Users automatically inherit group permissions.
+  </Step>
+  
+  <Step title="Adjust as Needed">
+    When someone changes roles, move them between groups instead of adjusting individual permissions.
+  </Step>
+</Steps>
+
+<Tip>
+  **Nested Access Pattern**: You can create a hierarchy of access by:
+  1. Creating groups for different access levels
+  2. Assigning users to appropriate groups
+  3. Granting groups different permissions on the same resources
+  
+  Example: `data-admins` group has owner access, `data-engineers` has manager access, and `data-analysts` has viewer access to the same data project.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Manage Projects" icon="folder" href="/organizations/projects">
+    Create projects for your groups to access
+  </Card>
+  
+  <Card title="Configure Policies" icon="shield" href="/authorization/policies">
+    Set up fine-grained access control
+  </Card>
+  
+  <Card title="Invite Users" icon="user-plus" href="/organizations/organizations#inviting-users">
+    Invite users to your organization
+  </Card>
+</CardGroup>

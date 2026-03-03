@@ -1,0 +1,312 @@
+---
+title: Authentication Overview
+description: Learn about Frontier's authentication system supporting OIDC, email OTP, social login, API keys, and RSA JWT authentication
+---
+
+# Authentication Overview
+
+Authentication is the process of verifying the identity of a user or service. Frontier provides a comprehensive authentication system that supports multiple strategies for both human users and machine service users.
+
+<Note>
+A user is always authenticated to prove its identity before it can be authorized to access a resource. Authentication is always the first step in accessing resources.
+</Note>
+
+## Authentication Types
+
+Frontier supports two primary types of authentication:
+
+1. **User Authentication** - For human users accessing your application through a web browser
+2. **Service User Authentication** - For machine-to-machine communication and API access
+
+## User Authentication Strategies
+
+For human users, Frontier provides the following authentication strategies:
+
+### 1. Social Login (OIDC)
+
+Authenticate users via third-party identity providers like Google, GitHub, and Facebook using OpenID Connect (OIDC) protocol.
+
+**Supported Providers:**
+- Google
+- GitHub  
+- Facebook
+- Any OIDC-compliant provider
+
+**Key Features:**
+- Secure OAuth 2.0 / OIDC flow
+- Automatic user registration on first login
+- Profile information sync
+- Session-based authentication with cookies
+
+### 2. Email One-Time Password (OTP)
+
+Send a one-time password to the user's email address for passwordless authentication.
+
+**Key Features:**
+- Passwordless authentication
+- Time-limited OTP codes (default: 10 minutes)
+- Rate limiting to prevent brute force attacks
+- Configurable email templates
+
+### 3. Email Magic Links
+
+Send a unique authentication link to the user's email that logs them in when clicked.
+
+**Key Features:**
+- One-click authentication
+- Time-limited links
+- No password required
+- Secure token-based flow
+
+### 4. Passkey Authentication
+
+Modern biometric and device-based authentication using WebAuthn standard.
+
+**Key Features:**
+- Biometric authentication (fingerprint, face recognition)
+- Hardware security key support
+- Phishing-resistant
+- No passwords to remember
+
+## Service User Authentication Strategies
+
+For machine service users, Frontier provides:
+
+### 1. Client ID/Secret (Client Credentials Grant)
+
+Traditional OAuth 2.0 client credentials flow using client ID and secret.
+
+**Use Cases:**
+- Backend services
+- Scheduled jobs
+- Server-to-server communication
+
+### 2. Private/Public Key JWT (JWT Bearer Grant)
+
+Asymmetric key-based authentication using RSA key pairs.
+
+**Use Cases:**
+- High-security environments
+- Distributed systems
+- Microservices architecture
+- No secret storage required (only private key)
+
+## Authentication Flow
+
+<Steps>
+
+### User initiates authentication
+
+User visits your application and clicks to sign in.
+
+### Strategy selection
+
+Application queries Frontier for available authentication strategies and presents options to the user.
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/auth' \
+  --header 'Accept: application/json'
+```
+
+### Start authentication flow
+
+User selects a strategy (e.g., Google) and frontend requests authentication URL.
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/auth/register/google' \
+  --header 'Accept: application/json'
+```
+
+### User authenticates
+
+User is redirected to identity provider, enters credentials, and approves access.
+
+### Callback and verification
+
+Identity provider redirects back to Frontier with authorization code. Frontier verifies the code and creates or retrieves the user.
+
+### Session creation
+
+Frontier creates an encrypted session and sets it as an HTTP-only cookie in the response.
+
+### Access granted
+
+User is redirected to the application with an active session. Subsequent requests include the session cookie for authentication.
+
+</Steps>
+
+## Session-Based vs Token-Based Authentication
+
+### Session-Based (Recommended for Web Apps)
+
+- Session stored as encrypted cookie
+- Automatic session management
+- CSRF protection built-in
+- Best for browser-based applications
+
+### Token-Based (Recommended for APIs)
+
+- JWT access tokens
+- Stateless authentication
+- Can be verified without database calls
+- Best for microservices and mobile apps
+
+**Frontier supports both:** After successful authentication, Frontier creates a session (stored as cookie) and can also return a JWT access token in the `x-user-token` header.
+
+## Access Tokens
+
+Frontier can generate JWT access tokens that can be verified by any service using Frontier's public keys.
+
+**Token Features:**
+- RS256 signing algorithm
+- Configurable validity period (default: 1 hour)
+- Custom claims for context (org_id, project_id)
+- Public key verification via JWKS endpoint
+
+**Getting Access Token:**
+
+```bash
+curl --location 'http://localhost:7400/v1beta1/auth/token' \
+  --header 'Accept: application/json' \
+  --header 'Cookie: frontier-session=...' \
+  --data 'grant_type=client_credentials'
+```
+
+**JWKS Endpoint:**
+
+```
+GET /.well-known/jwks.json
+```
+
+## Security Features
+
+### For User Authentication
+
+- **Encrypted sessions** - AES encryption for session cookies
+- **HTTPS enforcement** - Secure cookie transmission
+- **CSRF protection** - Built-in token validation
+- **Redirect URL whitelisting** - Prevent open redirect vulnerabilities
+- **Callback URL validation** - Only allowed URLs accepted
+
+### For Service User Authentication
+
+- **Secret hashing** - Client secrets stored with bcrypt
+- **Rate limiting** - Protection against brute force
+- **Token expiration** - Short-lived access tokens
+- **Key rotation** - Support for multiple active keys
+
+## Configuration Example
+
+Here's a complete authentication configuration:
+
+```yaml
+app:
+  authentication:
+    # Session configuration
+    session:
+      # 32-character secret keys for encryption
+      hash_secret_key: "hash-secret-should-be-32-chars--"
+      block_secret_key: "block-secret-should-be-32-chars-"
+      # Session validity period
+      validity: "168h" # 7 days
+      
+    # Access token configuration  
+    token:
+      # Path to RSA private key for signing tokens
+      rsa_path: "/opt/rsa"
+      # Token issuer claim
+      iss: "https://frontier.example.com"
+      # Token validity
+      validity: "1h"
+      
+    # Allowed callback URLs
+    callback_urls:
+      - "https://frontier.example.com/v1beta1/auth/callback"
+      - "https://app.example.com/auth/callback"
+      
+    # Allowed redirect URLs after authentication
+    authorized_redirect_urls:
+      - "https://app.example.com/dashboard"
+      - "https://app.example.com/"
+      
+    # OIDC provider configuration
+    oidc_config:
+      google:
+        client_id: "xxxxx.apps.googleusercontent.com"
+        client_secret: "xxxxx"
+        issuer_url: "https://accounts.google.com"
+        validity: "10m"
+        
+    # Email OTP configuration  
+    mail_otp:
+      subject: "Your Login Code"
+      body: "Your one-time password is: <h2>{{.Otp}}</h2>"
+      validity: "10m"
+      
+    # Magic link configuration
+    mail_link:
+      subject: "Your Login Link"
+      body: "Click here to login: <a href='{{.Link}}'>Login</a>"
+      validity: "10m"
+      
+  # SMTP configuration for email strategies
+  mailer:
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    smtp_username: "noreply@example.com"
+    smtp_password: "xxxxx"
+    smtp_insecure: false
+    headers:
+      from: "noreply@example.com"
+```
+
+## Generating RSA Keys
+
+To enable JWT access tokens, generate RSA key pairs:
+
+```bash
+./frontier server keygen
+```
+
+This generates two files:
+- `rsa` - Private key (keep secure)
+- `rsa.pub` - Public key (can be shared)
+
+Set the `rsa_path` in your configuration to the directory containing these files.
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1beta1/auth` | GET | List available authentication strategies |
+| `/v1beta1/auth/register/{strategy}` | GET | Start authentication flow |
+| `/v1beta1/auth/callback` | GET | Handle OAuth callback |
+| `/v1beta1/auth/token` | POST | Exchange credentials for access token |
+| `/v1beta1/auth/logout` | POST | End user session |
+| `/.well-known/jwks.json` | GET | Public keys for token verification |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="User Authentication" icon="user" href="/authentication/users">
+    Learn about user registration, login flows, and session management
+  </Card>
+  
+  <Card title="Service Users" icon="robot" href="/authentication/service-users">
+    Authenticate services and machines with API keys and JWT
+  </Card>
+  
+  <Card title="Sessions" icon="clock" href="/authentication/sessions">
+    Understand session lifecycle, tracking, and management
+  </Card>
+  
+  <Card title="Organization Domains" icon="building" href="/authentication/organization-domains">
+    Configure domain verification for auto-joining organizations
+  </Card>
+</CardGroup>
+
+## Related Resources
+
+- [Authorization Overview](/authorization/overview) - Learn about permissions and policies
+- [API Reference](/api-reference) - Complete API documentation
+- [Configuration Reference](/reference/configurations) - All configuration options

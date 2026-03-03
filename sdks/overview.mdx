@@ -1,0 +1,139 @@
+---
+title: SDK Overview
+description: Overview of Frontier SDKs for building authentication and billing into your applications
+---
+
+Frontier provides official SDKs to help you integrate authentication, authorization, and billing features into your applications quickly and efficiently.
+
+## Available SDKs
+
+Frontier offers SDKs for the most popular JavaScript frameworks:
+
+<CardGroup cols={2}>
+  <Card title="React SDK" icon="react" href="/sdks/react">
+    Pre-built React components and hooks for authentication, user management, and billing
+  </Card>
+  <Card title="JavaScript SDK" icon="js" href="/sdks/javascript">
+    Core JavaScript client for Node.js and browser environments
+  </Card>
+</CardGroup>
+
+## Features
+
+All Frontier SDKs provide:
+
+- **Authentication** - Magic links, OAuth providers, and session management
+- **User Management** - User profiles, organizations, teams, and permissions
+- **Billing & Subscriptions** - Plans, subscriptions, payment methods, and usage tracking
+- **Authorization** - Role-based access control and permission checking
+- **Organizations** - Multi-tenant organization management
+- **TypeScript Support** - Full type safety with generated types from Protocol Buffers
+
+## Package Information
+
+All SDKs are published under the `@raystack/frontier` package:
+
+<CodeGroup>
+```bash npm
+npm install @raystack/frontier
+```
+
+```bash yarn
+yarn add @raystack/frontier
+```
+
+```bash pnpm
+pnpm add @raystack/frontier
+```
+</CodeGroup>
+
+### Package Exports
+
+The package provides multiple entry points:
+
+| Import Path | Description |
+|-------------|-------------|
+| `@raystack/frontier` | Core JavaScript SDK |
+| `@raystack/frontier/react` | React components, hooks, and context |
+| `@raystack/frontier/hooks` | Standalone React Query hooks |
+| `@raystack/frontier/admin` | Admin UI components |
+
+## Architecture
+
+### Protocol Buffers & Connect
+
+Frontier SDKs use [Connect](https://connectrpc.com/) for type-safe RPC communication:
+
+- **Type Safety** - All API types generated from Protocol Buffers
+- **Streaming Support** - Bidirectional streaming capabilities
+- **Browser & Node** - Works in both environments
+- **React Query Integration** - Built-in caching and state management
+
+### React Query
+
+The React SDK leverages [TanStack React Query](https://tanstack.com/query) for:
+
+- Automatic caching and background refetching
+- Optimistic updates
+- Request deduplication
+- Polling support
+
+## Quick Start
+
+<Steps>
+  <Step title="Install the SDK">
+    Install the Frontier SDK package:
+    
+    ```bash
+    npm install @raystack/frontier
+    ```
+  </Step>
+  
+  <Step title="Choose Your Framework">
+    Select the appropriate SDK for your application:
+    
+    - **React** - Use `@raystack/frontier/react` for React applications
+    - **JavaScript** - Use `@raystack/frontier` for vanilla JS or other frameworks
+  </Step>
+  
+  <Step title="Configure Authentication">
+    Set up your Frontier endpoint and authentication redirects:
+    
+    ```typescript
+    const config = {
+      endpoint: 'https://your-frontier-instance.com',
+      redirectLogin: '/login',
+      redirectSignup: '/signup'
+    };
+    ```
+  </Step>
+  
+  <Step title="Start Building">
+    Use pre-built components or create custom integrations with the SDK APIs.
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="React SDK" icon="react" href="/sdks/react">
+    Learn how to use React components and hooks
+  </Card>
+  <Card title="JavaScript SDK" icon="js" href="/sdks/javascript">
+    Explore the core JavaScript client
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference">
+    View the complete API documentation
+  </Card>
+  <Card title="Authentication" icon="lock" href="/guides/authentication">
+    Set up authentication in your app
+  </Card>
+</CardGroup>
+
+## Support
+
+Need help? Check out these resources:
+
+- [GitHub Repository](https://github.com/raystack/frontier)
+- [API Documentation](/api-reference)
+- [Community Discord](https://discord.gg/raystack)

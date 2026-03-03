@@ -1,0 +1,1310 @@
+---
+title: Commands Reference
+description: Complete reference for all Frontier CLI commands
+---
+
+This page provides a comprehensive reference for all Frontier CLI commands, their flags, and usage examples.
+
+## Global Usage
+
+```bash
+frontier <command> <subcommand> [flags]
+```
+
+## Server Commands
+
+Manage Frontier server lifecycle, configuration, and database migrations.
+
+### server init
+
+Initialize a new Frontier server configuration file.
+
+```bash
+frontier server init [flags]
+```
+
+<ParamField path="--output" type="string" default="./config.yaml">
+  Output path for the configuration file
+</ParamField>
+
+**Example:**
+
+```bash
+frontier server init -o /etc/frontier/config.yaml
+```
+
+### server start
+
+Start the Frontier server.
+
+```bash
+frontier server start [flags]
+```
+
+<ParamField path="--config" type="string" required>
+  Path to the server configuration file
+</ParamField>
+
+**Examples:**
+
+<CodeGroup>
+```bash Basic
+frontier server start -c config.yaml
+```
+
+```bash Custom Config Path
+frontier server start --config /etc/frontier/config.yaml
+```
+</CodeGroup>
+
+<Note>
+The server starts on port 8080 by default. Configure the port in your config file under `app.port`.
+</Note>
+
+### server migrate
+
+Run database schema migrations.
+
+```bash
+frontier server migrate [flags]
+```
+
+<ParamField path="--config" type="string" required>
+  Path to the server configuration file containing database connection details
+</ParamField>
+
+**Example:**
+
+```bash
+frontier server migrate -c config.yaml
+```
+
+This command:
+- Runs all pending database migrations
+- Populates default metadata schemas
+- Updates the schema version
+
+### server migrate-rollback
+
+Rollback the last database migration.
+
+```bash
+frontier server migrate-rollback [flags]
+```
+
+<ParamField path="--config" type="string" required>
+  Path to the server configuration file
+</ParamField>
+
+**Example:**
+
+```bash
+frontier server migrate-rollback -c config.yaml
+```
+
+<Note>
+This command rolls back only the most recent migration. Run multiple times to rollback further.
+</Note>
+
+### server keygen
+
+Generate RSA keys in JWKS format for JWT token generation.
+
+```bash
+frontier server keygen [flags]
+```
+
+<ParamField path="--keys" type="integer" default="2">
+  Number of RSA key pairs to generate
+</ParamField>
+
+**Examples:**
+
+<CodeGroup>
+```bash Default (2 keys)
+frontier server keygen
+```
+
+```bash Custom Key Count
+frontier server keygen --keys 4
+```
+
+```bash Save to File
+frontier server keygen -k 2 > keys.json
+```
+</CodeGroup>
+
+---
+
+## User Commands
+
+Manage user accounts in Frontier.
+
+### user create
+
+Create a new user.
+
+```bash
+frontier user create [flags]
+```
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing user data
+</ParamField>
+
+<ParamField path="--header" type="string" required>
+  Authentication header in format `key:value`
+</ParamField>
+
+**Request Body Format:**
+
+```json user.json
+{
+  "email": "user@example.com",
+  "name": "john_doe",
+  "title": "John Doe",
+  "metadata": {
+    "department": "engineering"
+  }
+}
+```
+
+**Example:**
+
+```bash
+frontier user create \
+  --file user.json \
+  --header X-Frontier-Email:admin@example.com
+```
+
+### user edit
+
+Update an existing user.
+
+```bash
+frontier user edit <user-id> [flags]
+```
+
+<ParamField path="user-id" type="string" required>
+  User ID or slug to update
+</ParamField>
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing updated user data
+</ParamField>
+
+**Examples:**
+
+<CodeGroup>
+```bash By User ID
+frontier user edit 9f256f86-31a3-11ec-8d3d-0242ac130003 -f user.json
+```
+
+```bash By User Slug
+frontier user edit john_doe -f user.json
+```
+</CodeGroup>
+
+### user view
+
+View details of a specific user.
+
+```bash
+frontier user view <user-id> [flags]
+```
+
+<ParamField path="user-id" type="string" required>
+  User ID or slug to view
+</ParamField>
+
+<ParamField path="--metadata" type="boolean" default="false">
+  Include metadata in the output
+</ParamField>
+
+**Examples:**
+
+<CodeGroup>
+```bash Basic View
+frontier user view 9f256f86-31a3-11ec-8d3d-0242ac130003
+```
+
+```bash With Metadata
+frontier user view john_doe --metadata
+```
+</CodeGroup>
+
+### user list
+
+List all users.
+
+```bash
+frontier user list
+```
+
+**Example:**
+
+```bash
+frontier user list
+```
+
+---
+
+## Organization Commands
+
+Manage organizations.
+
+### organization create
+
+Create a new organization.
+
+```bash
+frontier organization create [flags]
+```
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing organization data
+</ParamField>
+
+<ParamField path="--header" type="string" required>
+  Authentication header in format `key:value`
+</ParamField>
+
+**Request Body Format:**
+
+```json organization.json
+{
+  "name": "acme-corp",
+  "title": "Acme Corporation",
+  "metadata": {
+    "industry": "technology",
+    "size": "enterprise"
+  }
+}
+```
+
+**Example:**
+
+```bash
+frontier organization create \
+  --file organization.json \
+  --header X-Frontier-Email:admin@example.com
+```
+
+### organization edit
+
+Update an existing organization.
+
+```bash
+frontier organization edit <organization-id> [flags]
+```
+
+<ParamField path="organization-id" type="string" required>
+  Organization ID to update
+</ParamField>
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing updated organization data
+</ParamField>
+
+**Example:**
+
+```bash
+frontier organization edit org-123 -f organization.json
+```
+
+### organization view
+
+View details of a specific organization.
+
+```bash
+frontier organization view <organization-id> [flags]
+```
+
+<ParamField path="organization-id" type="string" required>
+  Organization ID to view
+</ParamField>
+
+<ParamField path="--metadata" type="boolean" default="false">
+  Include metadata in the output
+</ParamField>
+
+**Examples:**
+
+<CodeGroup>
+```bash Basic View
+frontier organization view org-123
+```
+
+```bash With Metadata
+frontier organization view org-123 --metadata
+```
+</CodeGroup>
+
+### organization list
+
+List all organizations.
+
+```bash
+frontier organization list
+```
+
+**Example:**
+
+```bash
+frontier organization list
+```
+
+### organization admlist
+
+List administrators of an organization.
+
+```bash
+frontier organization admlist <organization-id>
+```
+
+<ParamField path="organization-id" type="string" required>
+  Organization ID to query
+</ParamField>
+
+**Example:**
+
+```bash
+frontier organization admlist org-123
+```
+
+---
+
+## Project Commands
+
+Manage projects within organizations.
+
+### project create
+
+Create a new project.
+
+```bash
+frontier project create [flags]
+```
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing project data
+</ParamField>
+
+<ParamField path="--header" type="string" required>
+  Authentication header in format `key:value`
+</ParamField>
+
+**Request Body Format:**
+
+```json project.json
+{
+  "name": "backend-api",
+  "title": "Backend API Project",
+  "org_id": "org-123",
+  "metadata": {
+    "environment": "production"
+  }
+}
+```
+
+**Example:**
+
+```bash
+frontier project create \
+  --file project.json \
+  --header X-Frontier-Email:admin@example.com
+```
+
+### project edit
+
+Update an existing project.
+
+```bash
+frontier project edit <project-id> [flags]
+```
+
+<ParamField path="project-id" type="string" required>
+  Project ID to update
+</ParamField>
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing updated project data
+</ParamField>
+
+**Example:**
+
+```bash
+frontier project edit proj-456 -f project.json
+```
+
+### project view
+
+View details of a specific project.
+
+```bash
+frontier project view <project-id> [flags]
+```
+
+<ParamField path="project-id" type="string" required>
+  Project ID to view
+</ParamField>
+
+<ParamField path="--metadata" type="boolean" default="false">
+  Include metadata in the output
+</ParamField>
+
+**Example:**
+
+```bash
+frontier project view proj-456 --metadata
+```
+
+### project list
+
+List all projects in an organization.
+
+```bash
+frontier project list <org-id>
+```
+
+<ParamField path="org-id" type="string" required>
+  Organization ID to list projects from
+</ParamField>
+
+**Example:**
+
+```bash
+frontier project list org-123
+```
+
+---
+
+## Group Commands
+
+Manage user groups within organizations.
+
+### group create
+
+Create a new group.
+
+```bash
+frontier group create [flags]
+```
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing group data
+</ParamField>
+
+<ParamField path="--header" type="string" required>
+  Authentication header in format `key:value`
+</ParamField>
+
+**Request Body Format:**
+
+```json group.json
+{
+  "name": "developers",
+  "title": "Development Team",
+  "org_id": "org-123",
+  "metadata": {
+    "team": "engineering"
+  }
+}
+```
+
+**Example:**
+
+```bash
+frontier group create \
+  --file group.json \
+  --header X-Frontier-Email:admin@example.com
+```
+
+### group edit
+
+Update an existing group.
+
+```bash
+frontier group edit <group-id> [flags]
+```
+
+<ParamField path="group-id" type="string" required>
+  Group ID to update
+</ParamField>
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing updated group data
+</ParamField>
+
+**Example:**
+
+```bash
+frontier group edit grp-789 -f group.json
+```
+
+### group view
+
+View details of a specific group.
+
+```bash
+frontier group view <org-id> <group-id> [flags]
+```
+
+<ParamField path="org-id" type="string" required>
+  Organization ID
+</ParamField>
+
+<ParamField path="group-id" type="string" required>
+  Group ID to view
+</ParamField>
+
+<ParamField path="--metadata" type="boolean" default="false">
+  Include metadata in the output
+</ParamField>
+
+**Example:**
+
+```bash
+frontier group view org-123 grp-789 --metadata
+```
+
+### group list
+
+List all groups in an organization.
+
+```bash
+frontier group list <org-id>
+```
+
+<ParamField path="org-id" type="string" required>
+  Organization ID to list groups from
+</ParamField>
+
+**Example:**
+
+```bash
+frontier group list org-123
+```
+
+---
+
+## Role Commands
+
+Manage roles and their permissions.
+
+### role create
+
+Create a new role.
+
+```bash
+frontier role create [flags]
+```
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing role data
+</ParamField>
+
+<ParamField path="--header" type="string" required>
+  Authentication header in format `key:value`
+</ParamField>
+
+**Request Body Format:**
+
+```json role.json
+{
+  "name": "developer",
+  "title": "Developer Role",
+  "permissions": [
+    "app_project.read",
+    "app_project.write"
+  ],
+  "org_id": "org-123",
+  "metadata": {
+    "level": "team"
+  }
+}
+```
+
+**Example:**
+
+```bash
+frontier role create \
+  --file role.json \
+  --header X-Frontier-Email:admin@example.com
+```
+
+### role edit
+
+Update an existing role.
+
+```bash
+frontier role edit <role-id> [flags]
+```
+
+<ParamField path="role-id" type="string" required>
+  Role ID to update
+</ParamField>
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing updated role data
+</ParamField>
+
+**Example:**
+
+```bash
+frontier role edit role-123 -f role.json
+```
+
+### role view
+
+View details of a specific role.
+
+```bash
+frontier role view <role-id> [flags]
+```
+
+<ParamField path="role-id" type="string" required>
+  Role ID to view
+</ParamField>
+
+<ParamField path="--metadata" type="boolean" default="false">
+  Include metadata in the output
+</ParamField>
+
+**Example:**
+
+```bash
+frontier role view role-123 --metadata
+```
+
+### role list
+
+List all roles.
+
+```bash
+frontier role list
+```
+
+**Example:**
+
+```bash
+frontier role list
+```
+
+---
+
+## Permission Commands
+
+Manage permissions (also called actions).
+
+### permission create
+
+Create new permissions.
+
+```bash
+frontier permission create [flags]
+```
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing permission data
+</ParamField>
+
+<ParamField path="--header" type="string" required>
+  Authentication header in format `key:value`
+</ParamField>
+
+**Request Body Format:**
+
+```json permission.json
+{
+  "name": "read",
+  "namespace": "app_project",
+  "metadata": {
+    "description": "Read project data"
+  }
+}
+```
+
+**Example:**
+
+```bash
+frontier permission create \
+  --file permission.json \
+  --header X-Frontier-Email:admin@example.com
+```
+
+### permission edit
+
+Update an existing permission.
+
+```bash
+frontier permission edit <permission-id> [flags]
+```
+
+<ParamField path="permission-id" type="string" required>
+  Permission ID to update
+</ParamField>
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing updated permission data
+</ParamField>
+
+**Example:**
+
+```bash
+frontier permission edit perm-123 -f permission.json
+```
+
+### permission view
+
+View details of a specific permission.
+
+```bash
+frontier permission view <permission-id>
+```
+
+<ParamField path="permission-id" type="string" required>
+  Permission ID to view
+</ParamField>
+
+**Example:**
+
+```bash
+frontier permission view perm-123
+```
+
+### permission list
+
+List all permissions.
+
+```bash
+frontier permission list
+```
+
+**Example:**
+
+```bash
+frontier permission list
+```
+
+---
+
+## Policy Commands
+
+Manage authorization policies.
+
+### policy create
+
+Create a new policy to grant a role to a principal on a resource.
+
+```bash
+frontier policy create [flags]
+```
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing policy data
+</ParamField>
+
+<ParamField path="--header" type="string" required>
+  Authentication header in format `key:value`
+</ParamField>
+
+**Request Body Format:**
+
+```json policy.json
+{
+  "role_id": "role-123",
+  "resource": "app_project:proj-456",
+  "principal": "app/user:user-789",
+  "title": "Developer Access to Backend API"
+}
+```
+
+**Example:**
+
+```bash
+frontier policy create \
+  --file policy.json \
+  --header X-Frontier-Email:admin@example.com
+```
+
+<Note>
+**Principal Format:** Principals follow the format `namespace:id`, for example:
+- User: `app/user:<user-id>`
+- Group: `app/group:<group-id>`
+- Service User: `app/serviceuser:<serviceuser-id>`
+</Note>
+
+### policy edit
+
+Update an existing policy.
+
+```bash
+frontier policy edit <policy-id> [flags]
+```
+
+<ParamField path="policy-id" type="string" required>
+  Policy ID to update
+</ParamField>
+
+<ParamField path="--file" type="string" required>
+  Path to JSON file containing updated policy data
+</ParamField>
+
+**Example:**
+
+```bash
+frontier policy edit pol-123 -f policy.json
+```
+
+### policy view
+
+View details of a specific policy.
+
+```bash
+frontier policy view <policy-id>
+```
+
+<ParamField path="policy-id" type="string" required>
+  Policy ID to view
+</ParamField>
+
+**Example:**
+
+```bash
+frontier policy view pol-123
+```
+
+---
+
+## Namespace Commands
+
+Manage permission namespaces.
+
+### namespace list
+
+List all namespaces.
+
+```bash
+frontier namespace list
+```
+
+**Example:**
+
+```bash
+frontier namespace list
+```
+
+### namespace view
+
+View details of a specific namespace.
+
+```bash
+frontier namespace view <namespace-id>
+```
+
+<ParamField path="namespace-id" type="string" required>
+  Namespace ID to view
+</ParamField>
+
+**Example:**
+
+```bash
+frontier namespace view app_project
+```
+
+---
+
+## Seed Command
+
+Bootstrap Frontier with sample data.
+
+### seed
+
+Populate the database with sample data including users, organizations, projects, groups, and resources.
+
+```bash
+frontier seed [flags]
+```
+
+<ParamField path="--header" type="string">
+  Authentication header key (value will be set to sample.admin@raystack.org)
+</ParamField>
+
+<ParamField path="--config" type="string">
+  Path to server configuration file (to read identity proxy header if --header not provided)
+</ParamField>
+
+**Examples:**
+
+<CodeGroup>
+```bash With Header
+frontier seed --header X-Frontier-Email
+```
+
+```bash With Config
+frontier seed --config config.yaml
+```
+</CodeGroup>
+
+This command creates:
+- Custom permissions and roles
+- Sample users
+- Sample organizations with admins
+- Sample service users and credentials
+- Sample projects within organizations
+- Sample resources within projects
+- Sample policies granting access
+
+<Note>
+The seed command uses `sample.admin@raystack.org` as the admin email. All created resources will be associated with this identity.
+</Note>
+
+---
+
+## Preferences Commands
+
+Manage platform and resource preferences.
+
+### preferences list
+
+List all configured preferences.
+
+```bash
+frontier preferences list [flags]
+```
+
+<ParamField path="--header" type="string" required>
+  Authentication header in format `key:value`
+</ParamField>
+
+**Example:**
+
+```bash
+frontier preferences list --header X-Frontier-Email:admin@example.com
+```
+
+### preferences set
+
+Set a preference value.
+
+```bash
+frontier preferences set [flags]
+```
+
+<ParamField path="--name" type="string" required>
+  Name of the preference trait
+</ParamField>
+
+<ParamField path="--value" type="string" required>
+  Value to set for the preference
+</ParamField>
+
+<ParamField path="--header" type="string" required>
+  Authentication header in format `key:value`
+</ParamField>
+
+**Examples:**
+
+<CodeGroup>
+```bash Set Email Subject
+frontier preferences set \
+  --name mail_link_subject \
+  --value "Your Frontier login link" \
+  --header X-Frontier-Email:admin@example.com
+```
+
+```bash Disable Org Creation
+frontier preferences set \
+  -n disable_orgs_on_create \
+  -v true \
+  -H X-Frontier-Email:admin@example.com
+```
+</CodeGroup>
+
+### preferences get
+
+Get the list of available preference traits and their definitions.
+
+```bash
+frontier preferences get [flags]
+```
+
+<ParamField path="--header" type="string" required>
+  Authentication header in format `key:value`
+</ParamField>
+
+**Example:**
+
+```bash
+frontier preferences get --header X-Frontier-Email:admin@example.com
+```
+
+---
+
+## Config Commands
+
+Manage CLI client configuration.
+
+### config init
+
+Initialize a new client configuration file.
+
+```bash
+frontier config init
+```
+
+**Example:**
+
+```bash
+frontier config init
+```
+
+This creates a configuration file at the default location with the following structure:
+
+```yaml
+host: http://localhost:8080
+```
+
+### config list
+
+Display the current client configuration.
+
+```bash
+frontier config list
+```
+
+**Example:**
+
+```bash
+frontier config list
+```
+
+---
+
+## Version Command
+
+Display version information and check for updates.
+
+### version
+
+Show the Frontier CLI version, build date, and commit.
+
+```bash
+frontier version
+```
+
+**Example:**
+
+```bash
+frontier version
+```
+
+Output:
+```
+Frontier: A secure and easy-to-use Authentication & Authorization Server
+Version: v0.4.0
+Build date: 2024-03-01
+Commit: abc123def
+```
+
+<Note>
+The version command automatically checks for newer releases and notifies you if an update is available.
+</Note>
+
+---
+
+## Global Flags
+
+These flags are available across multiple commands:
+
+### Common Client Flags
+
+<ParamField path="--host" type="string">
+  Frontier server host URL (can also be set in client config)
+  
+  **Example:** `--host http://localhost:8080`
+</ParamField>
+
+<ParamField path="--header" type="string">
+  Authentication header in `key:value` format
+  
+  **Example:** `--header X-Frontier-Email:admin@example.com`
+</ParamField>
+
+<ParamField path="--file" type="string">
+  Path to JSON file containing request body
+  
+  **Example:** `--file user.json`
+</ParamField>
+
+<ParamField path="--metadata" type="boolean">
+  Include metadata in output (for view commands)
+  
+  **Example:** `--metadata`
+</ParamField>
+
+### Server Command Flags
+
+<ParamField path="--config" type="string">
+  Path to server configuration file
+  
+  **Example:** `--config /etc/frontier/config.yaml`
+</ParamField>
+
+---
+
+## Help Topics
+
+Frontier provides additional help documentation for specific topics.
+
+### Help Environment
+
+View information about supported environment variables:
+
+```bash
+frontier help environment
+```
+
+### Help Auth
+
+View information about authentication configuration:
+
+```bash
+frontier help auth
+```
+
+---
+
+## Examples
+
+### Complete Workflow Example
+
+Here's a complete workflow for setting up a new organization with users and projects:
+
+<CodeGroup>
+```bash 1. Create Organization
+# Create organization
+cat > org.json <<EOF
+{
+  "name": "acme-corp",
+  "title": "Acme Corporation"
+}
+EOF
+
+frontier organization create \
+  -f org.json \
+  -H X-Frontier-Email:admin@example.com
+```
+
+```bash 2. Create User
+# Create user
+cat > user.json <<EOF
+{
+  "email": "developer@acme.com",
+  "name": "dev_user",
+  "title": "Developer"
+}
+EOF
+
+frontier user create \
+  -f user.json \
+  -H X-Frontier-Email:admin@example.com
+```
+
+```bash 3. Create Project
+# Create project in organization
+cat > project.json <<EOF
+{
+  "name": "backend-api",
+  "title": "Backend API",
+  "org_id": "org-123"
+}
+EOF
+
+frontier project create \
+  -f project.json \
+  -H X-Frontier-Email:admin@example.com
+```
+
+```bash 4. Create Group
+# Create group for developers
+cat > group.json <<EOF
+{
+  "name": "developers",
+  "title": "Development Team",
+  "org_id": "org-123"
+}
+EOF
+
+frontier group create \
+  -f group.json \
+  -H X-Frontier-Email:admin@example.com
+```
+
+```bash 5. Assign Role via Policy
+# Grant developer role to user on project
+cat > policy.json <<EOF
+{
+  "role_id": "role-developer",
+  "resource": "app_project:proj-456",
+  "principal": "app/user:user-789"
+}
+EOF
+
+frontier policy create \
+  -f policy.json \
+  -H X-Frontier-Email:admin@example.com
+```
+</CodeGroup>
+
+### Batch Operations Example
+
+<CodeGroup>
+```bash List All Resources
+# List all users
+frontier user list
+
+# List all organizations
+frontier organization list
+
+# List projects in organization
+frontier project list org-123
+
+# List groups in organization
+frontier group list org-123
+
+# List all roles
+frontier role list
+
+# List all permissions
+frontier permission list
+```
+
+```bash View with Metadata
+# View user with metadata
+frontier user view user-123 --metadata
+
+# View organization with metadata
+frontier organization view org-123 -m
+
+# View project with metadata
+frontier project view proj-456 --metadata
+```
+</CodeGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="CLI Overview" icon="book-open" href="./overview">
+    Learn about CLI capabilities and features
+  </Card>
+  <Card title="Installation" icon="download" href="./installation">
+    Install and configure the CLI
+  </Card>
+  <Card title="Shell Autocomplete" icon="keyboard" href="./shell-autocomplete">
+    Enable command autocompletion
+  </Card>
+</CardGroup>

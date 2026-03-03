@@ -1,0 +1,342 @@
+---
+title: 'API Overview'
+description: 'Learn about Frontier API architecture, base URLs, versioning, and response formats'
+---
+
+## Introduction
+
+The Frontier API is a Connect RPC API that provides programmatic access to all Frontier features including user management, organization administration, billing, permissions, and more. The API is built on the Connect protocol, which provides efficient gRPC-compatible communication over HTTP/1.1 and HTTP/2.
+
+## Base URL
+
+All API requests are made to the base URL:
+
+```
+https://your-frontier-instance.com
+```
+
+The API is served on the Connect server port (default: 8002) with all endpoints under the `/v1beta1` path prefix.
+
+<Note>
+  Replace `your-frontier-instance.com` with your actual Frontier deployment URL.
+</Note>
+
+## API Versioning
+
+Frontier uses version-based URL paths. The current API version is **v1beta1**.
+
+- All API endpoints are prefixed with the version: `/raystack.frontier.v1beta1.FrontierService/`
+- The admin API uses: `/raystack.frontier.v1beta1.AdminService/`
+
+### Services
+
+Frontier provides two main RPC services:
+
+<CodeGroup>
+
+```text FrontierService
+raystack.frontier.v1beta1.FrontierService
+```
+
+```text AdminService  
+raystack.frontier.v1beta1.AdminService
+```
+
+</CodeGroup>
+
+**FrontierService** handles all user-facing operations including:
+- User and service user management
+- Organization and project operations
+- Group and role management
+- Billing and subscriptions
+- Permissions and policies
+
+**AdminService** provides administrative operations for:
+- Platform configuration
+- System-wide permissions
+- Namespace management
+- Role definitions
+
+## Request Format
+
+Frontier accepts requests in both JSON and Protocol Buffers formats. All requests must include the appropriate `Content-Type` header.
+
+<CodeGroup>
+
+```bash JSON (Recommended)
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/GetCurrentUser \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{}'
+```
+
+```bash Protocol Buffers
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/GetCurrentUser \
+  -H "Content-Type: application/proto" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  --data-binary @request.pb
+```
+
+</CodeGroup>
+
+### Content Types
+
+- `application/json` - JSON encoding (recommended for most clients)
+- `application/proto` - Protocol Buffer binary encoding
+- `application/connect+json` - Connect JSON encoding
+- `application/connect+proto` - Connect Protocol Buffer encoding
+
+## Response Format
+
+All successful API responses return a JSON or Protocol Buffer object with the requested data. The structure varies by endpoint but follows consistent patterns.
+
+### Success Response
+
+<CodeGroup>
+
+```json User Response
+{
+  "user": {
+    "id": "8f7e7e3e-5c9c-4b9e-8f7e-7e3e5c9c4b9e",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "title": "Engineering Manager",
+    "avatar": "https://example.com/avatar.jpg",
+    "state": "enabled",
+    "created_at": "2023-01-15T10:30:00Z",
+    "updated_at": "2023-06-20T14:22:00Z"
+  }
+}
+```
+
+```json List Response
+{
+  "organizations": [
+    {
+      "id": "org_123abc",
+      "name": "Acme Corp",
+      "title": "Acme Corporation",
+      "state": "enabled",
+      "created_at": "2023-01-01T00:00:00Z"
+    },
+    {
+      "id": "org_456def",
+      "name": "Tech Startup",
+      "title": "Tech Startup Inc",
+      "state": "enabled",
+      "created_at": "2023-02-15T00:00:00Z"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Common Response Fields
+
+Many resources include these standard fields:
+
+<ParamField path="id" type="string">
+  Unique identifier for the resource (UUID or custom ID)
+</ParamField>
+
+<ParamField path="name" type="string">
+  Machine-readable name (slug format)
+</ParamField>
+
+<ParamField path="title" type="string">
+  Human-readable display name
+</ParamField>
+
+<ParamField path="created_at" type="timestamp">
+  ISO 8601 timestamp when the resource was created
+</ParamField>
+
+<ParamField path="updated_at" type="timestamp">
+  ISO 8601 timestamp when the resource was last updated
+</ParamField>
+
+<ParamField path="metadata" type="object">
+  Optional key-value pairs for custom data
+</ParamField>
+
+## Error Handling
+
+Frontier uses Connect protocol error codes and provides detailed error messages. All errors follow a consistent structure.
+
+### Error Response
+
+```json
+{
+  "code": "unauthenticated",
+  "message": "not authenticated",
+  "details": []
+}
+```
+
+### HTTP Status Codes
+
+Connect maps its error codes to HTTP status codes:
+
+| Connect Code | HTTP Status | Description |
+|--------------|-------------|-------------|
+| `ok` | 200 | Success |
+| `canceled` | 499 | Request canceled |
+| `invalid_argument` | 400 | Invalid request parameters |
+| `not_found` | 404 | Resource not found |
+| `already_exists` | 409 | Resource already exists |
+| `permission_denied` | 403 | Insufficient permissions |
+| `unauthenticated` | 401 | Authentication required |
+| `resource_exhausted` | 429 | Rate limit exceeded |
+| `failed_precondition` | 400 | Precondition failed |
+| `internal` | 500 | Internal server error |
+| `unavailable` | 503 | Service unavailable |
+
+### Common Error Codes
+
+Here are the most common error codes you'll encounter:
+
+<CodeGroup>
+
+```json Unauthenticated
+{
+  "code": "unauthenticated",
+  "message": "not authenticated"
+}
+```
+
+```json Permission Denied
+{
+  "code": "permission_denied",
+  "message": "not authorized"
+}
+```
+
+```json Not Found
+{
+  "code": "not_found",
+  "message": "user doesn't exist"
+}
+```
+
+```json Already Exists
+{
+  "code": "already_exists",
+  "message": "already exist"
+}
+```
+
+```json Invalid Argument
+{
+  "code": "invalid_argument",
+  "message": "invalid syntax in body"
+}
+```
+
+</CodeGroup>
+
+### Domain-Specific Errors
+
+Frontier provides specific error messages for domain operations:
+
+- **Organization errors**: `org is disabled. Please contact your administrator to enable it`
+- **Billing errors**: `insufficient credits`, `already on same plan`
+- **Domain verification**: `required TXT record not found for domain verification`
+- **Invitation errors**: `invitation expired`, `user is already a member of the organization`
+- **KYC errors**: `customer portal changes not allowed: organization kyc completed`
+
+## Rate Limiting
+
+Frontier does not enforce global rate limits by default, but individual deployments may configure rate limiting. Check with your Frontier administrator for specific limits.
+
+<Note>
+  If you receive a `resource_exhausted` error, you've hit a rate limit. Wait before retrying.
+</Note>
+
+## Pagination
+
+List endpoints support cursor-based pagination using the following query parameters:
+
+<ParamField query="page_size" type="integer" default="50">
+  Number of results per page (max: 100)
+</ParamField>
+
+<ParamField query="page_num" type="integer" default="1">
+  Page number to retrieve
+</ParamField>
+
+### Pagination Example
+
+<CodeGroup>
+
+```bash First Page
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/ListUsers \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"page_size": 25, "page_num": 1}'
+```
+
+```bash Second Page
+curl -X POST https://your-frontier-instance.com/raystack.frontier.v1beta1.FrontierService/ListUsers \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"page_size": 25, "page_num": 2}'
+```
+
+</CodeGroup>
+
+## Health Checks
+
+Frontier provides health check endpoints for monitoring:
+
+### Ping Endpoint
+
+```bash
+curl https://your-frontier-instance.com/ping
+```
+
+Response:
+```json
+{
+  "status": "SERVING"
+}
+```
+
+### gRPC Health Check
+
+```bash
+curl -X POST https://your-frontier-instance.com/grpc.health.v1.Health/Check \
+  -H "Content-Type: application/json" \
+  -d '{"service":"raystack.frontier.v1beta1.FrontierService"}'
+```
+
+## Service Reflection
+
+Frontier supports gRPC reflection for discovering available services and methods:
+
+- **Reflection v1**: `/grpc.reflection.v1.ServerReflection`
+- **Reflection v1alpha**: `/grpc.reflection.v1alpha.ServerReflection`
+
+Use tools like [grpcurl](https://github.com/fullstorydev/grpcurl) or [buf](https://buf.build) to introspect the API.
+
+## SDK Support
+
+Frontier uses the Connect protocol, which has official client libraries for:
+
+- **Go**: [connect-go](https://github.com/connectrpc/connect-go)
+- **TypeScript**: [connect-es](https://github.com/connectrpc/connect-es)
+- **Swift**: [connect-swift](https://github.com/connectrpc/connect-swift)
+- **Kotlin**: [connect-kotlin](https://github.com/connectrpc/connect-kotlin)
+
+You can also use standard gRPC clients with the generated protobuf definitions.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api-reference/authentication">
+    Learn how to authenticate API requests
+  </Card>
+  <Card title="API Endpoints" icon="code" href="/api-reference/endpoint">
+    Explore available API endpoints
+  </Card>
+</CardGroup>

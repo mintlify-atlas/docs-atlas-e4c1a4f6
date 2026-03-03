@@ -1,0 +1,125 @@
+---
+title: 'Delete Group'
+openapi: 'DELETE /v1beta1/groups/{id}'
+---
+
+Permanently delete a group from an organization. This action cannot be undone.
+
+<Warning>
+  Deleting a group will:
+  - Remove all users from the group
+  - Delete all policies and permissions associated with the group
+  - Remove all relations connected to this group
+  - This action is irreversible
+</Warning>
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the group to delete.
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="org_id" type="string" required>
+  The organization ID that the group belongs to. Required for authorization.
+</ParamField>
+
+## Response
+
+Returns an empty response with HTTP status 200 on successful deletion.
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE 'https://frontier.example.com/v1beta1/groups/grp_123456789?org_id=org_123' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://frontier.example.com/v1beta1/groups/grp_123456789?org_id=org_123',
+  {
+    method: 'DELETE',
+    headers: {
+      'Authorization': 'Bearer YOUR_ACCESS_TOKEN'
+    }
+  }
+);
+
+if (response.ok) {
+  console.log('Group deleted successfully');
+}
+```
+
+```python Python
+import requests
+
+response = requests.delete(
+    'https://frontier.example.com/v1beta1/groups/grp_123456789',
+    params={'org_id': 'org_123'},
+    headers={'Authorization': 'Bearer YOUR_ACCESS_TOKEN'}
+)
+
+if response.status_code == 200:
+    print('Group deleted successfully')
+```
+
+```go Go
+req, _ := http.NewRequest(
+    "DELETE",
+    "https://frontier.example.com/v1beta1/groups/grp_123456789?org_id=org_123",
+    nil,
+)
+req.Header.Set("Authorization", "Bearer YOUR_ACCESS_TOKEN")
+
+client := &http.Client{}
+resp, _ := client.Do(req)
+
+if resp.StatusCode == http.StatusOK {
+    fmt.Println("Group deleted successfully")
+}
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Success Response
+{}
+```
+
+```json Error: Group Not Found
+{
+  "code": "not_found",
+  "message": "group not found"
+}
+```
+
+```json Error: Unauthorized
+{
+  "code": "permission_denied",
+  "message": "insufficient permissions to delete this group"
+}
+```
+
+</ResponseExample>
+
+## Best Practices
+
+<Info>
+  Before deleting a group:
+  1. **Review dependencies**: Check if any resources depend on this group's permissions
+  2. **Audit members**: Ensure removing group access won't lock users out of critical resources
+  3. **Consider disabling first**: Use the [Disable Group](/api-reference/groups/disable-group) endpoint to temporarily deactivate instead of deleting
+  4. **Export data**: Save group metadata and member lists if needed for records
+</Info>
+
+## Alternative: Disable Group
+
+If you want to temporarily deactivate a group without permanently deleting it, consider using the Disable Group endpoint instead. This preserves the group data while preventing its use.
+
+```bash
+curl -X POST 'https://frontier.example.com/v1beta1/organizations/org_123/groups/grp_123456789/disable' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN'
+```
