@@ -1,0 +1,235 @@
+{
+  "projectType": "saas",
+  "projectName": "Frontier",
+  "projectDescription": "Open-source user management platform with identity, access control, and billing management",
+  "theme": "linden",
+  "primaryColor": "#3B82F6",
+  "lightColor": "#60A5FA",
+  "darkColor": "#1E40AF",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/glossary"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "authentication/overview",
+              "authentication/users",
+              "authentication/service-users",
+              "authentication/sessions",
+              "authentication/organization-domains"
+            ]
+          },
+          {
+            "group": "Authorization",
+            "pages": [
+              "authorization/overview",
+              "authorization/permissions",
+              "authorization/roles",
+              "authorization/policies",
+              "authorization/examples"
+            ]
+          },
+          {
+            "group": "Organization Management",
+            "pages": [
+              "organizations/overview",
+              "organizations/organizations",
+              "organizations/projects",
+              "organizations/groups",
+              "organizations/resources"
+            ]
+          },
+          {
+            "group": "Billing",
+            "pages": [
+              "billing/overview",
+              "billing/products-and-plans",
+              "billing/subscriptions",
+              "billing/customers",
+              "billing/credits",
+              "billing/entitlements"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/getting-started",
+              "guides/setup-oidc",
+              "guides/admin-portal",
+              "guides/webhooks",
+              "guides/audit-logs"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/server",
+              "configuration/database",
+              "configuration/smtp",
+              "configuration/billing-engine",
+              "configuration/metaschemas",
+              "configuration/preferences"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "api-reference/overview",
+              "api-reference/authentication"
+            ]
+          },
+          {
+            "group": "Users",
+            "pages": [
+              "api-reference/users/list-users",
+              "api-reference/users/create-user",
+              "api-reference/users/get-user",
+              "api-reference/users/update-user",
+              "api-reference/users/delete-user"
+            ]
+          },
+          {
+            "group": "Organizations",
+            "pages": [
+              "api-reference/organizations/list-organizations",
+              "api-reference/organizations/create-organization",
+              "api-reference/organizations/get-organization",
+              "api-reference/organizations/update-organization",
+              "api-reference/organizations/delete-organization"
+            ]
+          },
+          {
+            "group": "Projects",
+            "pages": [
+              "api-reference/projects/list-projects",
+              "api-reference/projects/create-project",
+              "api-reference/projects/get-project",
+              "api-reference/projects/update-project",
+              "api-reference/projects/delete-project"
+            ]
+          },
+          {
+            "group": "Groups",
+            "pages": [
+              "api-reference/groups/list-groups",
+              "api-reference/groups/create-group",
+              "api-reference/groups/get-group",
+              "api-reference/groups/update-group",
+              "api-reference/groups/delete-group"
+            ]
+          },
+          {
+            "group": "Permissions & Roles",
+            "pages": [
+              "api-reference/permissions/list-permissions",
+              "api-reference/permissions/create-permission",
+              "api-reference/permissions/check-permission",
+              "api-reference/roles/list-roles",
+              "api-reference/roles/create-role"
+            ]
+          },
+          {
+            "group": "Policies",
+            "pages": [
+              "api-reference/policies/list-policies",
+              "api-reference/policies/create-policy",
+              "api-reference/policies/get-policy",
+              "api-reference/policies/update-policy",
+              "api-reference/policies/delete-policy"
+            ]
+          },
+          {
+            "group": "Billing",
+            "pages": [
+              "api-reference/billing/list-billing-accounts",
+              "api-reference/billing/create-billing-account",
+              "api-reference/billing/create-subscription",
+              "api-reference/billing/create-checkout",
+              "api-reference/billing/get-balance"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "SDKs",
+        "groups": [
+          {
+            "group": "Client SDKs",
+            "pages": [
+              "sdks/overview",
+              "sdks/react",
+              "sdks/javascript"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI",
+        "groups": [
+          {
+            "group": "CLI Reference",
+            "pages": [
+              "cli/overview",
+              "cli/installation",
+              "cli/commands",
+              "cli/shell-autocomplete"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Single Sign-On (SSO) with OIDC support for Google, GitHub, Azure AD, and custom providers",
+    "Role-Based Access Control (RBAC) with fine-grained permissions powered by SpiceDB",
+    "Multi-tenant organization management with projects, groups, and hierarchical resources",
+    "Integrated billing and subscription management with Stripe integration",
+    "Service user authentication with API keys and RSA JWT tokens",
+    "Admin portal for managing users, organizations, and configurations",
+    "Comprehensive audit logging for compliance and security tracking",
+    "Webhook support for real-time event notifications",
+    "Virtual credits system for usage-based billing",
+    "Feature entitlement checks for subscription-based access control"
+  ],
+  "publicApiSurface": [
+    "POST /v1beta1/auth/register - User registration",
+    "POST /v1beta1/auth/token - Token authentication",
+    "GET /v1beta1/users - List users",
+    "POST /v1beta1/organizations - Create organization",
+    "POST /v1beta1/organizations/{id}/projects - Create project",
+    "POST /v1beta1/organizations/{id}/groups - Create group",
+    "POST /v1beta1/check - Check resource permission",
+    "POST /v1beta1/permissions - Create permission",
+    "POST /v1beta1/roles - Create role",
+    "POST /v1beta1/policies - Create policy",
+    "POST /v1beta1/organizations/{id}/billing - Create billing account",
+    "POST /v1beta1/organizations/{org_id}/billing/{billing_id}/subscriptions - Create subscription",
+    "GET /v1beta1/organizations/{org_id}/billing/{id}/balance - Get billing balance",
+    "frontier serve - Start Frontier server",
+    "frontier migrate - Run database migrations",
+    "frontier user create - Create user via CLI",
+    "frontier organization create - Create organization via CLI"
+  ]
+}
